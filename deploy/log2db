@@ -1,0 +1,978 @@
+#!/usr/bin/perl -wT
+
+#########################################################################
+#
+# Copyright 2006-2012 ClearFoundation
+#
+#########################################################################
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+#
+# Based on squidparse.pl by Simon Burns (http://squidalyser.sourceforge.net/)
+# Heavily modified for Point Clark Networks by W.H Welch <whw3@whw3.com>
+#
+#########################################################################
+
+#########################################################################
+#
+# PROXY AND CONTENT FILTER LOGS
+#
+# When the content filter is running, useful and unique information is
+# provided in both the Squid and DansGuardian logs.  For example, the 
+# "duration" of a page view is only available in Squid.  The "reason" for
+# blocking a particular page is only available in DansGuardian.  From
+# a practical view, the end-user could care less about where the data
+# resides -- they just want the data.
+# 
+# For this reason, this script will merge the data from both logs into
+# one table. 
+#
+#########################################################################
+
+use strict;
+use DBI;
+use Digest::MD5 qw(md5 md5_hex md5_base64);
+use Geo::IP;
+use Getopt::Std;
+use IO::Zlib;
+use Socket;
+use Sys::Syslog qw(:DEFAULT setlogsock);
+use Time::ParseDate;
+use Fcntl;
+
+#------------------------------------------------------------------------
+# Initialization
+#------------------------------------------------------------------------
+
+$| = 1; # Flush output immediately
+$0 = "log2mysql";
+
+$ENV {'PATH'}  = '/sbin:/usr/bin:/bin';
+$ENV {'SHELL'} = '/bin/sh';
+delete @ENV {'ENV', 'BASH_ENV'};  # Perl security stuff - see "man perlsec"
+
+#------------------------------------------------------------------------
+# Functions
+#------------------------------------------------------------------------
+
+sub startup();
+sub db_connect();
+sub db_disconnect();
+sub get_proxy_log_list();
+sub get_resolved_hostnames();
+sub get_filter_messages();
+sub load_dataset();
+sub load_filter_logs($$$);
+sub log_msg($);
+sub process_proxy_log();
+sub usage();
+
+#------------------------------------------------------------------------
+# Variable initalization
+#------------------------------------------------------------------------
+
+my $g_opt_string = 'fahv';
+my %g_opt;
+my $g_dbh;
+my %g_unresolved;
+my %g_resolved;
+my @g_filter_logs;
+my %g_filter_messages;
+my $g_filter_fileseek = 0;
+my $g_proxy_fileseek = 0;
+my %g_dataset;
+my %g_filterset;
+my $g_debug = 0;
+my $g_dbcount = 0;
+
+my $FILE_GEOIP = "/usr/share/GeoIP/GeoLiteCity.dat";
+my $FORMAT_SQUID = 1;
+my $FORMAT_DANSGUARDIAN = 2;
+my $DB_EXPIRE_UNIT = "w";
+my $DB_EXPIRE_VALUE = "156";
+my $SYSLOG_NAME = "local6";
+
+#------------------------------------------------------------------------
+# Usage
+#------------------------------------------------------------------------
+
+getopts("$g_opt_string", \%g_opt ) or usage();
+usage() if defined $g_opt{h};
+
+#------------------------------------------------------------------------
+# Main
+#------------------------------------------------------------------------
+
+startup();
+db_connect();
+%g_resolved = get_resolved_hostnames();
+
+get_filter_messages();
+process_proxy_log();
+update_hostnames();
+db_disconnect();
+
+exit 0;
+
+#########################################################################
+#
+# F U N C T I O N S
+#
+#########################################################################
+
+#------------------------------------------------------------------------
+# startup - do some general startup tasks
+#------------------------------------------------------------------------
+
+sub startup() {
+	my $isrunning = `/sbin/pidof -x log2mysql`;
+	chomp($isrunning);
+
+	if ($isrunning && ($isrunning ne $$)) {
+		log_msg("Already running.");
+		print("Already running\n");
+		exit 0;
+	}
+}
+
+#------------------------------------------------------------------------
+# log_msg - logs a message to syslog
+#------------------------------------------------------------------------
+
+sub log_msg($) {
+	setlogsock('unix');
+	openlog('log2mysql', 'ndelay', $SYSLOG_NAME);
+	syslog('info', $_[0]);
+	closelog();
+}
+
+#------------------------------------------------------------------------
+# get_filter_messages - returns a hash array of filter messages
+#
+# The %g_filter_messages global variable is populated with the 
+# DansGuardian translations and error code numbers found in
+# /etc/dansguardian-av/languages/*/messages:
+#
+# %g_filter_messages{'Banned phrase found.'} = 301;
+# %g_filter_messages{'Phrase interdite trouvee.'} = 301;
+# ... 
+# %g_filter_messages{'Banned site: '} = 500;
+#
+# See parse_dansguardian_log_line to find out why this is necessary.
+#------------------------------------------------------------------------
+
+sub get_filter_messages() {
+	my @filelist;
+
+	if (-d "/etc/dansguardian-av/languages") {
+		@filelist = `/usr/bin/find /etc/dansguardian-av/languages -name messages`;
+	} elsif (-d "/etc/dansguardian/languages") {
+		@filelist = `/usr/bin/find /etc/dansguardian/languages -name messages`;
+	} else {
+		return;
+	}
+
+	foreach my $file (@filelist) {
+		chomp($file);
+		open(MESSAGES, $file) or next;
+
+		while (<MESSAGES>) {
+			$g_filter_messages{$2} = $1 if (/^"(\d+)","(.*)"$/);
+		}
+	}
+}
+
+#------------------------------------------------------------------------
+# get_resolved_hostnames - returns an array of resolved hostnames
+#------------------------------------------------------------------------
+
+sub get_resolved_hostnames() {
+	my %resolved;
+	my @data;
+
+	my $query = qq|
+		SELECT ip AS iplong, INET_NTOA(ip) AS ip
+		FROM hostnames WHERE isResolved = 1
+		GROUP BY ip
+	|;
+
+	my $sth = $g_dbh->prepare($query);
+
+	# TODO: attempt to repair hostnames table if something goes wrong.
+	# See process_proxy_log for an example.
+	$sth->execute or die "Could not execute statement: " . $sth->errstr;
+
+	while (@data = $sth->fetchrow_array()) {
+		my $key = $data[1];
+		$resolved{$key} = $data[2];
+	}
+
+	$sth->finish;
+
+	return %resolved;
+}
+
+#------------------------------------------------------------------------
+# get_proxy_log_list - returns a list of log files to process.  
+#------------------------------------------------------------------------
+
+sub get_proxy_log_list() {
+	my $directory = "/var/log/squid";
+	my $basefile = "access.log";
+
+	my @loglist;
+
+	if (defined($g_opt{a})) {
+		# Implies a -f / force
+		$g_opt{f} = 1;
+
+		opendir LOGDIR, $directory or die $!;
+
+		while (my $logfile = readdir LOGDIR) {
+			if (($logfile =~ /$basefile$/) || ($logfile =~ /$basefile.\d+$/) || ($logfile =~ /$basefile.\d+.gz$/)) {
+				$logfile =~ s/$basefile//;
+				$logfile =~ s/\.gz$//;
+				push @loglist, "$logfile";
+			}
+		}
+
+		@loglist = sort @loglist;
+		@loglist = reverse @loglist;
+
+		closedir LOGDIR; 
+
+	} else {
+		push @loglist, "" if ((-e "$directory/$basefile") || (-e "$directory/$basefile.gz"));
+	}
+
+	return @loglist;
+}
+
+#------------------------------------------------------------------------
+# process_proxy_log - load proxy log data.
+#
+# while (still_parsing_logs)
+#   - load next 5000 lines from the proxy log into record set ($g_dataset)
+#   - load proxy server logs with the same date range ($g_filterset)
+#   - merge the two data sets (the proxy log is the "master" set)
+#   - dump the merged data into the database
+#------------------------------------------------------------------------
+
+sub process_proxy_log() {
+
+	# Determine which log files to process
+	#-------------------------------------
+
+	my @filenumbers = get_proxy_log_list();
+
+	# Determine time of last run
+	#---------------------------
+
+	my $lastrun = 0;
+	my $query = qq|select UNIX_TIMESTAMP(MAX(date_time)) FROM proxy|;
+	my $sth = $g_dbh->prepare($query);
+	eval { $sth->execute; };
+
+	if ($@) {
+		if ($DBI::err) {
+			# Repair the table and try again
+			log_msg("Repairing proxy table.");
+			$sth = $g_dbh->prepare("repair table proxy");
+			$sth->execute or die "Could not execute statement: " . $sth->errstr;
+
+			$sth = $g_dbh->prepare($query);
+			$sth->execute or die "Could not execute statement: " . $sth->errstr;
+		}
+	}
+
+	my $lastrunval = $sth->fetchrow;
+	$lastrun = $lastrunval if ($lastrunval);
+	$sth->finish;
+
+	# Load the log data
+	#------------------
+
+	my $retval;
+	my $linecount = 0;
+	my $datacount = 0;
+	my $date_from;
+	my ($date_time, $duration, $client, $cache_code, $status, $bytes, $method, $request, $rfc931, $hierarchy, $content_type, $domain, $md5);
+
+	foreach my $filenumber (@filenumbers) {
+
+		# Open the log file
+		#------------------
+
+		my $logfile = "/var/log/squid/access.log" . $filenumber;
+	
+		if (-e "$logfile.gz" ) {
+			$logfile = "$logfile.gz";
+			tie *PROXY, 'IO::Zlib', $logfile, "rb";
+		} elsif (-e "$logfile" ) {
+			open (PROXY, "< $logfile") or die $!;
+		} else {
+			next;
+		}
+
+		print "Processing $logfile ";
+	
+		# If this is the first time, we are efficient at find a good place 
+		# to start scanning the file.
+		#-----------------------------------------------------------------
+
+		if ($g_proxy_fileseek == 0) {
+			$date_time = 0;
+			my $safe_position = 0;
+			my $current_position = 0;
+			my $proxyline;
+			
+			while ($date_time < $lastrun) {
+				print "debug: searching proxy log at byte $current_position\n" if $g_debug;
+				$safe_position = $current_position;
+				$current_position = $current_position + 1000000;
+
+				seek PROXY, $current_position, 0;
+				$proxyline = <PROXY>; # First read may incomplete line
+				$proxyline = <PROXY>;
+				last if (!$proxyline);
+
+				($retval, $date_time, $duration, $client, $cache_code, $status, $bytes, $method, $request, $rfc931, $hierarchy, $content_type, $domain, $md5) = parse_squid_log_line($proxyline);
+			}
+
+			$g_proxy_fileseek = $safe_position;
+
+			seek PROXY, $g_proxy_fileseek, 0;
+		}
+
+		# Process the log file
+		#---------------------
+
+		while (my $line = <PROXY>) {
+			$linecount++;
+	
+			($retval, $date_time, $duration, $client, $cache_code, $status, $bytes, $method, $request, $rfc931, $hierarchy, $content_type, $domain, $md5) = parse_squid_log_line($line);
+			next if ($retval == 1);
+
+			if (defined($g_opt{f}) || ($date_time >= $lastrun)) {
+				next if ($request =~ /:82.public.filtered.php/);
+
+				print "debug: loading proxy request $date_time|$request\n" if $g_debug;
+				$g_dataset{$date_time . "|" . $request}->{date_time} = $date_time;
+				$g_dataset{$date_time . "|" . $request}->{duration} = $duration;
+				$g_dataset{$date_time . "|" . $request}->{client} = $client;
+				$g_dataset{$date_time . "|" . $request}->{cache_code} = $cache_code;
+				$g_dataset{$date_time . "|" . $request}->{status} = $status;
+				$g_dataset{$date_time . "|" . $request}->{bytes} = $bytes;
+				$g_dataset{$date_time . "|" . $request}->{method} = $method;
+				$g_dataset{$date_time . "|" . $request}->{request} = $request;
+				$g_dataset{$date_time . "|" . $request}->{rfc931} = $rfc931;
+				$g_dataset{$date_time . "|" . $request}->{content_type} = $content_type;
+				$g_dataset{$date_time . "|" . $request}->{domain} = $domain;
+				$g_dataset{$date_time . "|" . $request}->{md5} = $md5;
+				$datacount++;
+
+				if (($datacount % 3000) == 0){
+					load_filter_logs($date_from, $date_time, $filenumber);
+					load_dataset();
+					$date_from = $date_time;
+					print "." if (!$g_debug);
+				} elsif ($datacount == 1) {
+					$date_from = $date_time;
+				}
+			}
+		}
+
+		load_filter_logs($date_from, $date_time, $filenumber);
+		load_dataset();
+	
+		if ($logfile =~ /\.gz$/) {
+			untie *PROXY;
+		} else {
+			close PROXY;
+		}
+
+		$g_proxy_fileseek = 0;
+
+		print "\n";
+	}
+
+	# Show summary information
+	if ($g_dbcount > 0) {
+		print qq|Processed $linecount proxy log lines - $g_dbcount records added.\n|;
+		log_msg("Processed $linecount proxy log lines - $g_dbcount records added.");
+	}
+}
+
+#------------------------------------------------------------------------
+# load_filter_logs
+#------------------------------------------------------------------------
+#
+# Gotchas:
+# - The time stamps in the proxy and filter logs can vary quite a bit
+#   ... up to a few seconds.  A fuzz factor is used.
+# - There's no guarantee that the order in the logs will be the same.
+# - The file seek was an afterthought
+#	
+#--------------------------------------------------------------------
+
+sub load_filter_logs($$$) {
+	my $date_from = $_[0];
+	my $date_to = $_[1];
+	my $filenumber = $_[2];
+	my $retval, my $date_time, my $date, my $rfc931, my $client, my $request, my $code, my $detail, my $method, my $bytes, my $weight;
+
+	# Fuzz the time a bit
+	#--------------------
+
+	$date_from =~ s/\..*//;
+	$date_from = $date_from - 3;
+
+	$date_to =~ s/\..*//;
+	$date_to = $date_to + 3;
+
+	# Open the file
+	#--------------
+
+	my $logfile = "/var/log/dansguardian/access.log$filenumber";
+
+	if (-e "$logfile.gz" ) {
+		$logfile = "$logfile.gz";
+		tie *FILTER, 'IO::Zlib', $logfile, "rb";
+	} elsif (-e "$logfile" ) {
+		open (FILTER, "< $logfile") or die $!;
+	} else {
+		return;
+	}
+
+	print "debug: loading content filter logs between $date_from -> $date_to\n" if $g_debug;
+
+	# If this is the first time, we are efficient at find a good place 
+	# to start scanning the file.
+	#-----------------------------------------------------------------
+
+	if ($g_filter_fileseek == 0) {
+		$date_time = 0;
+		my $safe_position = 0;
+		my $current_position = 0;
+		my $filterline;
+		
+		while ($date_time < $date_from) {
+			print "debug: searching content filter log at byte $current_position\n" if $g_debug;
+			$safe_position = $current_position;
+			$current_position = $current_position + 1000000;
+
+			seek FILTER, $current_position, 0;
+			$filterline = <FILTER>; # First read may incomplete line
+			$filterline = <FILTER>;
+			last if (!$filterline);
+
+			($retval, $date_time, $date, $rfc931, $client, $request, $code, $detail, $method, $bytes, $weight) = parse_dansguardian_log_line($filterline);
+		}
+
+		$g_filter_fileseek = $safe_position;
+	} else {
+		$g_filter_fileseek = $g_filter_fileseek - 10000;
+		$g_filter_fileseek = 0 if ($g_filter_fileseek  < 0);
+	}
+
+	# Set the location of the file and load data
+	#-------------------------------------------
+
+	seek FILTER, $g_filter_fileseek, 0;
+
+	while (my $filterline = <FILTER>) {
+		($retval, $date_time, $date, $rfc931, $client, $request, $code, $detail, $method, $bytes, $weight) = parse_dansguardian_log_line($filterline);
+
+		next if ($retval == 1);
+
+		if ($date_time >= $date_to) {
+			print "debug: finished content filter log processing\n" if $g_debug;
+			$g_filter_fileseek = tell FILTER;
+			close FILTER;
+			return;
+		} elsif (($date_time >= $date_from) && ($date_time <= $date_to)) {
+			print "debug: loading content filter request $date_time|$request\n" if $g_debug;
+			$g_filterset{$date_time . "|" . $request}->{filter_code} = $code;
+			$g_filterset{$date_time . "|" . $request}->{filter_detail} = $detail;
+			$g_filterset{$date_time . "|" . $request}->{filter_weight} = $weight;
+			$g_filterset{$date_time . "|" . $request}->{filter_client} = $client;
+		}
+	}
+
+	if ($logfile =~ /\.gz$/) {
+		untie *FILTER;
+	} else {
+		close FILTER;
+	}
+}
+
+#------------------------------------------------------------------------
+# load_dataset - loads current dataset into database
+#------------------------------------------------------------------------
+
+sub load_dataset() {
+
+	print "debug: loading data sets into database\n" if $g_debug;
+
+	# Merge the two data sets (proxy logs, filter logs)
+	#--------------------------------------------------
+
+	foreach my $key (keys %g_dataset) {
+		my ($date_time_proxy, $request_proxy) = split(/\|/, $key);
+		my $date_time_proxy_rounded = $date_time_proxy;
+		$date_time_proxy_rounded =~ s/\..*//;
+
+		foreach my $filterkey (keys %g_filterset) {
+			my ($date_time_filter, $request_filter) = split(/\|/, $filterkey);
+			next if ($request_proxy ne $request_filter);
+
+			my $match = 0;
+
+			if ($date_time_proxy_rounded == $date_time_filter) {
+				print "debug: match fuzz 0 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+				$match = 1;
+			} elsif ($date_time_proxy_rounded == ($date_time_filter - 1)) {
+				print "debug: match fuzz -1 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+				$match = 1;
+			} elsif ($date_time_proxy_rounded == ($date_time_filter - 2)) {
+				print "debug: match fuzz -2 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+				$match = 1;
+			} elsif ($date_time_proxy_rounded == ($date_time_filter - 3)) {
+				print "debug: match fuzz -3 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+				$match = 1;
+			} elsif ($date_time_proxy_rounded == ($date_time_filter + 1)) {
+				print "debug: match fuzz +1 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+				$match = 1;
+			} elsif ($date_time_proxy_rounded == ($date_time_filter + 2)) {
+				print "debug: match fuzz +2 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+				$match = 1;
+			}
+
+			if ($match == 1) {
+				# Override client IP in case X-Forward is disabled for some reason
+				$g_dataset{$key}->{client} = $g_filterset{$filterkey}->{filter_client};
+				$g_dataset{$key}->{filter_code} = $g_filterset{$filterkey}->{filter_code};
+				$g_dataset{$key}->{filter_detail} = $g_filterset{$filterkey}->{filter_detail};
+				$g_dataset{$key}->{filter_weight} = $g_filterset{$filterkey}->{filter_weight};
+				$g_dataset{$key}->{filter_data} = 1;
+				delete $g_filterset{$filterkey};
+				last;
+			}
+		}
+	}
+
+	# Dump merged data into database
+	#-------------------------------
+
+	foreach my $key (keys %g_dataset) {
+		if (exists($g_dataset{$key}->{filter_data}) && ($g_dataset{$key}->{filter_data} eq "1")) {
+			print "debug: filtercode for $key: " . $g_dataset{$key}->{filter_code} . "\n" if $g_debug;
+		} else {
+			print "debug: filtercode missing for $key\n" if $g_debug;
+			$g_dataset{$key}->{filter_code} = 0;
+			$g_dataset{$key}->{filter_detail} = "";
+			$g_dataset{$key}->{filter_weight} = 0;
+		}
+	
+		# Insert into database
+		my $query = qq|
+			INSERT INTO proxy (date_time, duration, client, cache_code, status, bytes, method, request, rfc931, content_type, domain, md5, filter_code, filter_detail)
+			VALUES ( FROM_UNIXTIME(?), ?, INET_ATON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		|;
+	
+		my $sth = $g_dbh->prepare($query);
+	
+		eval {
+			$sth->execute(
+				$g_dataset{$key}->{date_time},
+				$g_dataset{$key}->{duration},
+				$g_dataset{$key}->{client},
+				$g_dataset{$key}->{cache_code},
+				$g_dataset{$key}->{status},
+				$g_dataset{$key}->{bytes},
+				$g_dataset{$key}->{method},
+				$g_dataset{$key}->{request},
+				$g_dataset{$key}->{rfc931},
+				$g_dataset{$key}->{content_type},
+				$g_dataset{$key}->{domain},
+				$g_dataset{$key}->{md5},
+				$g_dataset{$key}->{filter_code},
+				$g_dataset{$key}->{filter_detail}
+			);
+		};
+
+		if ($@) {
+			if ($DBI::err eq 1062) {
+				# print "duplicate line: $md5\n";
+			} elsif ($DBI::err) {
+				die "Database error " . $DBI::errstr . "\n";
+			}
+		} else {
+			$g_dbcount++;
+		}
+	}
+
+	undef(%g_dataset);
+	undef(%g_filterset);
+	eval { $g_dbh->commit(); };
+}
+
+#------------------------------------------------------------------------
+# update_hostname - updates the hostnames table with GeoIP data
+#------------------------------------------------------------------------
+
+sub update_hostnames {
+
+	return if (! -e $FILE_GEOIP); # Bail if GeoIP not installed
+
+	my $query = qq|
+		INSERT INTO hostnames (ip, description, isResolved, hostname, country_code, country_name, city, region, latitude, longitude)
+		VALUES (INET_ATON(?) , ? , ? , ? , ?, ? , ? , ? , ? , ?)
+	|;
+
+	my $sth = $g_dbh->prepare($query);
+
+	my $geoip = Geo::IP->open($FILE_GEOIP, GEOIP_STANDARD);
+	my ($key, $hostname, $ip, $country_code, $country_name, $city, $region, $latitude, $longitude);
+
+	while (($key, $hostname) = each(%g_unresolved)){
+		if (is_ipv4($hostname)) {
+			$ip = $hostname;
+			$hostname = gethostbyaddr(inet_aton($ip), AF_INET);
+		} else {
+			$ip = gethostbyname($hostname);
+		}
+
+		my $record = $geoip->record_by_name($ip);
+		my $description = $ip;
+		my $isresolved = 1;
+
+		if ($record) {
+			$country_code = $record->country_code;
+			$country_name = $record->country_name;
+			$city = $record->city;
+			$region = $record->region;
+			$latitude = $record->latitude;
+			$longitude = $record->longitude;
+		} else {
+			$country_code = 'UNK';
+			$country_name = 'UNK';
+			$city = 'UNK';
+			$region = 'UNK';
+			$latitude = 0;
+			$longitude = 0;
+		}
+
+		eval {
+			$sth->execute($ip, $description, $isresolved, $hostname, $country_code, $country_name, $city, $region, $latitude, $longitude);
+		};
+
+		if ($@) {
+			print STDERR "VALUES=" . join("\t", $ip, $description, $isresolved, $hostname, $country_code, $country_name, $city, $region, $latitude, $longitude) . "\n";
+			print STDERR $query;
+			die $!;  # FIXME: dying is a bit harsh?
+		};
+
+		$sth->finish;
+	}
+}
+
+#------------------------------------------------------------------------
+# parse_squid_log_line - parses a log line in Squid format
+#
+# Returns:
+# - $retval (0 if parse was successful)
+# - $date_time
+# - $duration
+# - $client
+# - $cache_code  Squid result codes: http://www.squid-cache.org/Doc/FAQ/FAQ-6.html#ss6.7
+# - $status       
+# - $bytes
+# - $method
+# - $request
+# - $rfc931
+# - $hierarchy
+# - $content_type
+# - $domain (base domain of the request)
+# - $md5
+#
+# Squid log format:
+#
+# date_time      | duration | client    | cache_code/status            | bytes | method | request                      | rfc931 | hierarchy            | content-type
+# -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 1156783571.630   218        127.0.0.1   TCP_MISS/200                   14676   GET      http://www.clarkconnect.com/   bob      DIRECT/69.90.141.108   text/html
+#
+#------------------------------------------------------------------------
+
+sub parse_squid_log_line {
+	my $line = shift or return;
+	my $retval;
+	my $date_time;
+	my $duration;
+	my $client;
+	my $cache_code;
+	my $status;
+	my $bytes;
+	my $method;
+	my $request;
+	my $rfc931;
+	my $hierarchy;
+	my $content_type;
+	my $domain;
+	my $md5;
+
+	if ($line =~ /^(\d{10,}\.\d{3,3})/) {
+
+		my $full_code;
+		($date_time, $duration, $client, $full_code, $bytes, $method, $request, $rfc931, $hierarchy, $content_type) = split(/\s+/, $line);
+		($cache_code, $status) = split(/\//, $full_code);
+
+		# If we're using NTLM authentication, we have username in DOMAIN\User format,
+		# so split domain and user (authuser) at \
+
+		if ($rfc931 =~ /\\/) {
+			my ($domain, $user) = split(/\\/,$rfc931);
+			$rfc931 = $user;
+		}
+
+		$request =~ s/\/$//g;
+		$domain = $request;
+		$domain =~ s/.*:\/\///;
+		$domain =~ s/\/.*//;
+		$md5 = md5_hex($line);
+
+		$bytes = 0 unless ($bytes =~ /\d+/);
+		$retval = 0;
+	} else {
+		$retval = 1;
+	}
+
+	return ($retval, $date_time, $duration, $client, $cache_code, $status, $bytes, $method, $request, $rfc931, $hierarchy, $content_type, $domain, $md5);
+}
+
+#------------------------------------------------------------------------
+# parse_dansguardian_log_line - parses a log line in DansGuardian format
+#
+# Returns:
+# - $retval     - 0 if parse was successful)
+# - $date_time
+# - $rfc931
+# - $client
+# - $request
+# - $code       - see list /etc/dansguardian-av/languages/*/messages
+# - $detail
+# - $method
+# - $bytes
+#
+# DansGuardian log format:
+#
+# date_time           | rfc931 | client        | request                     | code_type + code_text + detail | method | bytes 
+# -----------------------------------------------------------------------------------------------------------------------------
+# 2005.11.2 11:55:22    bob      192.168.2.212   http://www.clarkconnect.com                                    GET      14482
+# 2006.8.28 13:03:38    bob      192.168.2.212   http://www.sex.com/           *DENIED* Banned site: sex.com    GET      0
+#
+# Version 2.9.9.x 
+# - appended more fields
+# - included "scanned" in the code without any details, e.g.:
+# 2007.9.11 13:26:49 bob 192.168.2.137 http://www.clarkconnect.com/index.php *SCANNED*  GET 13991 -100  1 200 text/html   -
+#
+# ... weight | category | group | code | mimetype  | (ignore)
+# -----------------------------------------------------------------------------------------------------------------------------
+# ... -80                  1       200   text/html   
+# ... -80      ?           1       200   text/html 
+#
+# The "code_type + code_text + detail" is not consistent which makes parsing fragile
+# 1) the information is logged in localized format.
+# 2) a standard field separator is not used.
+# 3) code_type is optional
+#
+# To get around this issue, the get_filter_messages function loads
+# ALL the local tags into a hash array and uses it to determine the code.
+#------------------------------------------------------------------------
+
+sub parse_dansguardian_log_line {
+	my $line = shift or return;
+	my $retval;
+	my $date_time;
+	my $rfc931;
+	my $client;
+	my $request;
+	my $code;
+	my $detail;
+	my $code_and_detail;
+	my $method;
+	my $bytes;
+	my $weight;
+	my $date;
+	my $time;
+	my $toeol;
+
+	if ($line =~ /^(\d{4,}\.\d{1,2}\.\d{1,2})/) {
+		$line =~ s/\*SCANNED\* //;  # Gets in the way
+
+		($date, $time, $rfc931, $client, $request, $toeol) = split(/ /, $line, 6);
+
+		$date = "$date $time";
+		$date_time = parsedate($date);
+
+		# Empty code information
+		if ($toeol =~ /^ /) {
+			$code = 0;
+			$detail = "";
+			$toeol =~ s/^ //;
+
+		# Populated code field
+		} elsif ($toeol =~ / (GET|CONNECT) /) {
+			$code = 0;
+			$detail = "unknown";
+
+			$toeol =~ /(\*.*\*) (.*) (GET|CONNECT) .*/;
+			$code_and_detail = $2;
+
+			if ($code_and_detail) {
+				foreach my $code_lookup (keys %g_filter_messages) {
+					my $regex = $code_lookup;
+					$regex =~ s/\[/\\[/g;
+					if ($code_and_detail =~ /$regex/) {
+						$code = $g_filter_messages{$code_lookup};
+						$detail = $code_and_detail;
+						$detail =~ s/$regex//;
+						$detail =~ s/^\s*//;
+					}
+				}
+			}
+
+			$toeol =~ s/.* GET /GET /;
+			$toeol =~ s/.* CONNECT /CONNECT /;
+		}
+
+		($method, $bytes, $weight, $toeol) = split(/ /, $toeol, 4);
+
+		$bytes = 0 unless ($bytes =~ /\d+/);
+		$request =~ s/\/$//g;
+		$request =~ s/\?.*/\?/;
+
+		$retval = 0;
+	} else {
+		$retval = 1;
+	}
+
+	return ($retval, $date_time, $date, $rfc931, $client, $request, $code, $detail, $method, $bytes, $weight);
+}
+
+#------------------------------------------------------------------------
+# db_connect - initializes and connects to database
+#------------------------------------------------------------------------
+
+sub db_connect() {
+	my $dbuser = "reports";
+	my $dbname = "reports";
+	my $dbport = "3308";
+	my $dbhost = "127.0.0.1";
+	my $dbpass;
+
+	if (-e "/var/clearos/system_database/reports") {
+		open (DBINFO, "/var/clearos/system_database/reports") or die $!;
+		while(<DBINFO>) {
+			if (/^password\s*=\s*/) {
+				s/^password\s*=\s*//;
+				chomp();
+				$dbpass = $_;
+			}
+		}
+	}
+
+	system("/usr/clearos/apps/proxy_report/deploy/initialize-tables");
+
+	my $retry = 0;
+
+	while ($retry < 3) {
+		eval {
+			$g_dbh = DBI->connect(
+				"DBI:mysql:$dbname:$dbhost:$dbport",
+				$dbuser,
+				$dbpass,
+				{ RaiseError => 1, PrintError => 0, AutoCommit => 0 }
+			);
+		};
+
+		if ($@) {
+			if ($DBI::err eq 2003) {
+				system("/sbin/service system-mysqld start >/dev/null 2>&1");
+			} else {
+				system("/usr/clearos/apps/proxy_report/deploy/initialize-tables");
+			}
+
+			$retry++;
+			sleep(3);
+		} else {
+			return;
+		}
+	}
+
+	die "Failed to connect to database";
+}
+
+#------------------------------------------------------------------------
+# db_disconnect - disconnects from database
+#------------------------------------------------------------------------
+
+sub db_disconnect() {
+	if ($g_dbh) {
+		$g_dbh->commit();
+		$g_dbh->disconnect;
+	}
+}
+
+#------------------------------------------------------------------------
+# is_ipv4 - validates IP address
+#------------------------------------------------------------------------
+
+sub is_ipv4 {
+	my $self = shift if ref($_[0]);
+	my $value = shift;
+
+	return unless defined($value);
+
+	my(@octets) = $value =~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+	return unless (@octets == 4);
+
+	foreach (@octets) {
+		return unless ($_ >= 0 && $_ <= 255);
+	}
+
+	return join('.', @octets);
+}
+
+#------------------------------------------------------------------------
+# usage - usage output
+#------------------------------------------------------------------------
+
+sub usage() {
+	print STDERR qq|
+This program loads squid and dansguardian files into a mysql database.
+
+	usage: $0 [-hvfa]
+
+	-h		: this (help) message
+	-v		: verbose output
+	-f		: force insert
+	-a		: all logs
+
+	example: $0 -v -a
+
+|;
+	exit;
+}

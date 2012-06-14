@@ -1,0 +1,6 @@
+#!/bin/sh
+
+# Initialied database tables
+#---------------------------
+
+/usr/clearos/apps/proxy_report/deploy/initialize-tables

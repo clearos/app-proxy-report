@@ -1,0 +1,31 @@
+#!/bin/sh
+
+MYSQL="/usr/clearos/sandbox/usr/bin/mysql"
+
+DB_CONFIG="/var/clearos/system_database/root"
+APP_DB_TABLES="/usr/clearos/apps/proxy_report/deploy/db_tables.sql"
+
+# Start system database
+#----------------------
+
+/usr/clearos/apps/system_database/deploy/bootstrap
+
+# Grab root database password
+#----------------------------
+
+ROOTPASS=`grep ^password $DB_CONFIG 2>/dev/null | sed "s/^password[[:space:]]*=[[:space:]]*//"`
+
+if [ -z "$ROOTPASS" ]; then
+    echo "Unable to authenticate with database"
+    exit 1
+fi
+
+# Create tables (if necessary)
+#-----------------------------
+
+TABLE_EXISTS=`$MYSQL -uroot -p"$ROOTPASS" -e 'show tables;' reports 2>/dev/null | grep proxy`
+
+if [ -z "$TABLE_EXISTS" ]; then
+	echo "Creating base tables"
+	$MYSQL -uroot -p"$ROOTPASS" reports < $APP_DB_TABLES
+fi
