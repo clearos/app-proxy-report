@@ -5,7 +5,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 $app['basename'] = 'proxy_report';
-$app['version'] = '1.1.1';
+$app['version'] = '1.2.9';
 $app['release'] = '1';
 $app['vendor'] = 'ClearFoundation';
 $app['packager'] = 'ClearFoundation';
@@ -34,4 +34,5 @@ $app['controllers']['settings']['title'] = lang('base_settings');
 
 $app['core_requires'] = array(
     'app-reports-core',
+    'app-reports-database-core',
 );

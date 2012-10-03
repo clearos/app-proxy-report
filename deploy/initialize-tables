@@ -1,7 +1,6 @@
 #!/bin/sh
 
 MYSQL="/usr/clearos/sandbox/usr/bin/mysql"
-
 DB_CONFIG="/var/clearos/system_database/root"
 APP_DB_TABLES="/usr/clearos/apps/proxy_report/deploy/db_tables.sql"
 
@@ -26,6 +25,6 @@ fi
 TABLE_EXISTS=`$MYSQL -uroot -p"$ROOTPASS" -e 'show tables;' reports 2>/dev/null | grep proxy`
 
 if [ -z "$TABLE_EXISTS" ]; then
-	echo "Creating base tables"
+    logger -p local6.notice -t installer "app-proxy-report-core - creating tables"
 	$MYSQL -uroot -p"$ROOTPASS" reports < $APP_DB_TABLES
 fi

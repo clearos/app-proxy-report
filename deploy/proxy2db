@@ -57,7 +57,7 @@ use Fcntl;
 #------------------------------------------------------------------------
 
 $| = 1; # Flush output immediately
-$0 = "log2mysql";
+$0 = "proxy2db";
 
 $ENV {'PATH'}  = '/sbin:/usr/bin:/bin';
 $ENV {'SHELL'} = '/bin/sh';
@@ -137,7 +137,7 @@ exit 0;
 #------------------------------------------------------------------------
 
 sub startup() {
-	my $isrunning = `/sbin/pidof -x log2mysql`;
+	my $isrunning = `/sbin/pidof -x proxy2db`;
 	chomp($isrunning);
 
 	if ($isrunning && ($isrunning ne $$)) {
@@ -153,7 +153,7 @@ sub startup() {
 
 sub log_msg($) {
 	setlogsock('unix');
-	openlog('log2mysql', 'ndelay', $SYSLOG_NAME);
+	openlog('proxy2db', 'ndelay', $SYSLOG_NAME);
 	syslog('info', $_[0]);
 	closelog();
 }
@@ -204,7 +204,7 @@ sub get_resolved_hostnames() {
 
 	my $query = qq|
 		SELECT ip AS iplong, INET_NTOA(ip) AS ip
-		FROM hostnames WHERE isResolved = 1
+		FROM hostnames WHERE resolved = 1
 		GROUP BY ip
 	|;
 
@@ -281,7 +281,7 @@ sub process_proxy_log() {
 	#---------------------------
 
 	my $lastrun = 0;
-	my $query = qq|select UNIX_TIMESTAMP(MAX(date_time)) FROM proxy|;
+	my $query = qq|select UNIX_TIMESTAMP(MAX(timestamp)) FROM proxy|;
 	my $sth = $g_dbh->prepare($query);
 	eval { $sth->execute; };
 
@@ -308,7 +308,7 @@ sub process_proxy_log() {
 	my $linecount = 0;
 	my $datacount = 0;
 	my $date_from;
-	my ($date_time, $duration, $client, $cache_code, $status, $bytes, $method, $request, $rfc931, $hierarchy, $content_type, $domain, $md5);
+	my ($timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5);
 
 	foreach my $filenumber (@filenumbers) {
 
@@ -333,12 +333,12 @@ sub process_proxy_log() {
 		#-----------------------------------------------------------------
 
 		if ($g_proxy_fileseek == 0) {
-			$date_time = 0;
+			$timestamp = 0;
 			my $safe_position = 0;
 			my $current_position = 0;
 			my $proxyline;
 			
-			while ($date_time < $lastrun) {
+			while ($timestamp < $lastrun) {
 				print "debug: searching proxy log at byte $current_position\n" if $g_debug;
 				$safe_position = $current_position;
 				$current_position = $current_position + 1000000;
@@ -348,7 +348,7 @@ sub process_proxy_log() {
 				$proxyline = <PROXY>;
 				last if (!$proxyline);
 
-				($retval, $date_time, $duration, $client, $cache_code, $status, $bytes, $method, $request, $rfc931, $hierarchy, $content_type, $domain, $md5) = parse_squid_log_line($proxyline);
+				($retval, $timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5) = parse_squid_log_line($proxyline);
 			}
 
 			$g_proxy_fileseek = $safe_position;
@@ -362,39 +362,39 @@ sub process_proxy_log() {
 		while (my $line = <PROXY>) {
 			$linecount++;
 	
-			($retval, $date_time, $duration, $client, $cache_code, $status, $bytes, $method, $request, $rfc931, $hierarchy, $content_type, $domain, $md5) = parse_squid_log_line($line);
+			($retval, $timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5) = parse_squid_log_line($line);
 			next if ($retval == 1);
 
-			if (defined($g_opt{f}) || ($date_time >= $lastrun)) {
+			if (defined($g_opt{f}) || ($timestamp >= $lastrun)) {
 				next if ($request =~ /:82.public.filtered.php/);
 
-				print "debug: loading proxy request $date_time|$request\n" if $g_debug;
-				$g_dataset{$date_time . "|" . $request}->{date_time} = $date_time;
-				$g_dataset{$date_time . "|" . $request}->{duration} = $duration;
-				$g_dataset{$date_time . "|" . $request}->{client} = $client;
-				$g_dataset{$date_time . "|" . $request}->{cache_code} = $cache_code;
-				$g_dataset{$date_time . "|" . $request}->{status} = $status;
-				$g_dataset{$date_time . "|" . $request}->{bytes} = $bytes;
-				$g_dataset{$date_time . "|" . $request}->{method} = $method;
-				$g_dataset{$date_time . "|" . $request}->{request} = $request;
-				$g_dataset{$date_time . "|" . $request}->{rfc931} = $rfc931;
-				$g_dataset{$date_time . "|" . $request}->{content_type} = $content_type;
-				$g_dataset{$date_time . "|" . $request}->{domain} = $domain;
-				$g_dataset{$date_time . "|" . $request}->{md5} = $md5;
+				print "debug: loading proxy request $timestamp|$request\n" if $g_debug;
+				$g_dataset{$timestamp . "|" . $request}->{timestamp} = $timestamp;
+				$g_dataset{$timestamp . "|" . $request}->{duration} = $duration;
+				$g_dataset{$timestamp . "|" . $request}->{ip} = $ip;
+				$g_dataset{$timestamp . "|" . $request}->{cache_code} = $cache_code;
+				$g_dataset{$timestamp . "|" . $request}->{status} = $status;
+				$g_dataset{$timestamp . "|" . $request}->{bytes} = $bytes;
+				$g_dataset{$timestamp . "|" . $request}->{method} = $method;
+				$g_dataset{$timestamp . "|" . $request}->{request} = $request;
+				$g_dataset{$timestamp . "|" . $request}->{username} = $username;
+				$g_dataset{$timestamp . "|" . $request}->{content_type} = $content_type;
+				$g_dataset{$timestamp . "|" . $request}->{domain} = $domain;
+				$g_dataset{$timestamp . "|" . $request}->{md5} = $md5;
 				$datacount++;
 
 				if (($datacount % 3000) == 0){
-					load_filter_logs($date_from, $date_time, $filenumber);
+					load_filter_logs($date_from, $timestamp, $filenumber);
 					load_dataset();
-					$date_from = $date_time;
+					$date_from = $timestamp;
 					print "." if (!$g_debug);
 				} elsif ($datacount == 1) {
-					$date_from = $date_time;
+					$date_from = $timestamp;
 				}
 			}
 		}
 
-		load_filter_logs($date_from, $date_time, $filenumber);
+		load_filter_logs($date_from, $timestamp, $filenumber);
 		load_dataset();
 	
 		if ($logfile =~ /\.gz$/) {
@@ -431,7 +431,7 @@ sub load_filter_logs($$$) {
 	my $date_from = $_[0];
 	my $date_to = $_[1];
 	my $filenumber = $_[2];
-	my $retval, my $date_time, my $date, my $rfc931, my $client, my $request, my $code, my $detail, my $method, my $bytes, my $weight;
+	my $retval, my $timestamp, my $date, my $username, my $ip, my $request, my $code, my $detail, my $method, my $bytes, my $weight;
 
 	# Fuzz the time a bit
 	#--------------------
@@ -463,12 +463,12 @@ sub load_filter_logs($$$) {
 	#-----------------------------------------------------------------
 
 	if ($g_filter_fileseek == 0) {
-		$date_time = 0;
+		$timestamp = 0;
 		my $safe_position = 0;
 		my $current_position = 0;
 		my $filterline;
 		
-		while ($date_time < $date_from) {
+		while ($timestamp < $date_from) {
 			print "debug: searching content filter log at byte $current_position\n" if $g_debug;
 			$safe_position = $current_position;
 			$current_position = $current_position + 1000000;
@@ -478,7 +478,7 @@ sub load_filter_logs($$$) {
 			$filterline = <FILTER>;
 			last if (!$filterline);
 
-			($retval, $date_time, $date, $rfc931, $client, $request, $code, $detail, $method, $bytes, $weight) = parse_dansguardian_log_line($filterline);
+			($retval, $timestamp, $date, $username, $ip, $request, $code, $detail, $method, $bytes, $weight) = parse_dansguardian_log_line($filterline);
 		}
 
 		$g_filter_fileseek = $safe_position;
@@ -493,21 +493,21 @@ sub load_filter_logs($$$) {
 	seek FILTER, $g_filter_fileseek, 0;
 
 	while (my $filterline = <FILTER>) {
-		($retval, $date_time, $date, $rfc931, $client, $request, $code, $detail, $method, $bytes, $weight) = parse_dansguardian_log_line($filterline);
+		($retval, $timestamp, $date, $username, $ip, $request, $code, $detail, $method, $bytes, $weight) = parse_dansguardian_log_line($filterline);
 
 		next if ($retval == 1);
 
-		if ($date_time >= $date_to) {
+		if ($timestamp >= $date_to) {
 			print "debug: finished content filter log processing\n" if $g_debug;
 			$g_filter_fileseek = tell FILTER;
 			close FILTER;
 			return;
-		} elsif (($date_time >= $date_from) && ($date_time <= $date_to)) {
-			print "debug: loading content filter request $date_time|$request\n" if $g_debug;
-			$g_filterset{$date_time . "|" . $request}->{filter_code} = $code;
-			$g_filterset{$date_time . "|" . $request}->{filter_detail} = $detail;
-			$g_filterset{$date_time . "|" . $request}->{filter_weight} = $weight;
-			$g_filterset{$date_time . "|" . $request}->{filter_client} = $client;
+		} elsif (($timestamp >= $date_from) && ($timestamp <= $date_to)) {
+			print "debug: loading content filter request $timestamp|$request\n" if $g_debug;
+			$g_filterset{$timestamp . "|" . $request}->{filter_code} = $code;
+			$g_filterset{$timestamp . "|" . $request}->{filter_detail} = $detail;
+			$g_filterset{$timestamp . "|" . $request}->{filter_weight} = $weight;
+			$g_filterset{$timestamp . "|" . $request}->{filter_ip} = $ip;
 		}
 	}
 
@@ -530,39 +530,39 @@ sub load_dataset() {
 	#--------------------------------------------------
 
 	foreach my $key (keys %g_dataset) {
-		my ($date_time_proxy, $request_proxy) = split(/\|/, $key);
-		my $date_time_proxy_rounded = $date_time_proxy;
-		$date_time_proxy_rounded =~ s/\..*//;
+		my ($timestamp_proxy, $request_proxy) = split(/\|/, $key);
+		my $timestamp_proxy_rounded = $timestamp_proxy;
+		$timestamp_proxy_rounded =~ s/\..*//;
 
 		foreach my $filterkey (keys %g_filterset) {
-			my ($date_time_filter, $request_filter) = split(/\|/, $filterkey);
+			my ($timestamp_filter, $request_filter) = split(/\|/, $filterkey);
 			next if ($request_proxy ne $request_filter);
 
 			my $match = 0;
 
-			if ($date_time_proxy_rounded == $date_time_filter) {
-				print "debug: match fuzz 0 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+			if ($timestamp_proxy_rounded == $timestamp_filter) {
+				print "debug: match fuzz 0 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
 				$match = 1;
-			} elsif ($date_time_proxy_rounded == ($date_time_filter - 1)) {
-				print "debug: match fuzz -1 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+			} elsif ($timestamp_proxy_rounded == ($timestamp_filter - 1)) {
+				print "debug: match fuzz -1 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
 				$match = 1;
-			} elsif ($date_time_proxy_rounded == ($date_time_filter - 2)) {
-				print "debug: match fuzz -2 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+			} elsif ($timestamp_proxy_rounded == ($timestamp_filter - 2)) {
+				print "debug: match fuzz -2 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
 				$match = 1;
-			} elsif ($date_time_proxy_rounded == ($date_time_filter - 3)) {
-				print "debug: match fuzz -3 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+			} elsif ($timestamp_proxy_rounded == ($timestamp_filter - 3)) {
+				print "debug: match fuzz -3 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
 				$match = 1;
-			} elsif ($date_time_proxy_rounded == ($date_time_filter + 1)) {
-				print "debug: match fuzz +1 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+			} elsif ($timestamp_proxy_rounded == ($timestamp_filter + 1)) {
+				print "debug: match fuzz +1 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
 				$match = 1;
-			} elsif ($date_time_proxy_rounded == ($date_time_filter + 2)) {
-				print "debug: match fuzz +2 $request_proxy @ " . $date_time_proxy_rounded . "\n" if $g_debug;
+			} elsif ($timestamp_proxy_rounded == ($timestamp_filter + 2)) {
+				print "debug: match fuzz +2 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
 				$match = 1;
 			}
 
 			if ($match == 1) {
-				# Override client IP in case X-Forward is disabled for some reason
-				$g_dataset{$key}->{client} = $g_filterset{$filterkey}->{filter_client};
+				# Override IP in case X-Forward is disabled for some reason
+				$g_dataset{$key}->{ip} = $g_filterset{$filterkey}->{filter_ip};
 				$g_dataset{$key}->{filter_code} = $g_filterset{$filterkey}->{filter_code};
 				$g_dataset{$key}->{filter_detail} = $g_filterset{$filterkey}->{filter_detail};
 				$g_dataset{$key}->{filter_weight} = $g_filterset{$filterkey}->{filter_weight};
@@ -588,7 +588,7 @@ sub load_dataset() {
 	
 		# Insert into database
 		my $query = qq|
-			INSERT INTO proxy (date_time, duration, client, cache_code, status, bytes, method, request, rfc931, content_type, domain, md5, filter_code, filter_detail)
+			INSERT INTO proxy (timestamp, duration, ip, cache_code, status, bytes, method, request, username, content_type, domain, md5, filter_code, filter_detail)
 			VALUES ( FROM_UNIXTIME(?), ?, INET_ATON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		|;
 	
@@ -596,15 +596,15 @@ sub load_dataset() {
 	
 		eval {
 			$sth->execute(
-				$g_dataset{$key}->{date_time},
+				$g_dataset{$key}->{timestamp},
 				$g_dataset{$key}->{duration},
-				$g_dataset{$key}->{client},
+				$g_dataset{$key}->{ip},
 				$g_dataset{$key}->{cache_code},
 				$g_dataset{$key}->{status},
 				$g_dataset{$key}->{bytes},
 				$g_dataset{$key}->{method},
 				$g_dataset{$key}->{request},
-				$g_dataset{$key}->{rfc931},
+				$g_dataset{$key}->{username},
 				$g_dataset{$key}->{content_type},
 				$g_dataset{$key}->{domain},
 				$g_dataset{$key}->{md5},
@@ -638,7 +638,7 @@ sub update_hostnames {
 	return if (! -e $FILE_GEOIP); # Bail if GeoIP not installed
 
 	my $query = qq|
-		INSERT INTO hostnames (ip, description, isResolved, hostname, country_code, country_name, city, region, latitude, longitude)
+		INSERT INTO hostnames (ip, description, resolved, hostname, country_code, country_name, city, region, latitude, longitude)
 		VALUES (INET_ATON(?) , ? , ? , ? , ?, ? , ? , ? , ? , ?)
 	|;
 
@@ -694,15 +694,15 @@ sub update_hostnames {
 #
 # Returns:
 # - $retval (0 if parse was successful)
-# - $date_time
+# - $timestamp
 # - $duration
-# - $client
+# - $ip
 # - $cache_code  Squid result codes: http://www.squid-cache.org/Doc/FAQ/FAQ-6.html#ss6.7
 # - $status       
 # - $bytes
 # - $method
 # - $request
-# - $rfc931
+# - $username
 # - $hierarchy
 # - $content_type
 # - $domain (base domain of the request)
@@ -710,7 +710,7 @@ sub update_hostnames {
 #
 # Squid log format:
 #
-# date_time      | duration | client    | cache_code/status            | bytes | method | request                      | rfc931 | hierarchy            | content-type
+# timestamp      | duration | ip    | cache_code/status            | bytes | method | request                      | username | hierarchy            | content-type
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # 1156783571.630   218        127.0.0.1   TCP_MISS/200                   14676   GET      http://www.clarkconnect.com/   bob      DIRECT/69.90.141.108   text/html
 #
@@ -719,15 +719,15 @@ sub update_hostnames {
 sub parse_squid_log_line {
 	my $line = shift or return;
 	my $retval;
-	my $date_time;
+	my $timestamp;
 	my $duration;
-	my $client;
+	my $ip;
 	my $cache_code;
 	my $status;
 	my $bytes;
 	my $method;
 	my $request;
-	my $rfc931;
+	my $username;
 	my $hierarchy;
 	my $content_type;
 	my $domain;
@@ -736,15 +736,15 @@ sub parse_squid_log_line {
 	if ($line =~ /^(\d{10,}\.\d{3,3})/) {
 
 		my $full_code;
-		($date_time, $duration, $client, $full_code, $bytes, $method, $request, $rfc931, $hierarchy, $content_type) = split(/\s+/, $line);
+		($timestamp, $duration, $ip, $full_code, $bytes, $method, $request, $username, $hierarchy, $content_type) = split(/\s+/, $line);
 		($cache_code, $status) = split(/\//, $full_code);
 
 		# If we're using NTLM authentication, we have username in DOMAIN\User format,
 		# so split domain and user (authuser) at \
 
-		if ($rfc931 =~ /\\/) {
-			my ($domain, $user) = split(/\\/,$rfc931);
-			$rfc931 = $user;
+		if ($username =~ /\\/) {
+			my ($domain, $user) = split(/\\/,$username);
+			$username = $user;
 		}
 
 		$request =~ s/\/$//g;
@@ -759,7 +759,7 @@ sub parse_squid_log_line {
 		$retval = 1;
 	}
 
-	return ($retval, $date_time, $duration, $client, $cache_code, $status, $bytes, $method, $request, $rfc931, $hierarchy, $content_type, $domain, $md5);
+	return ($retval, $timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5);
 }
 
 #------------------------------------------------------------------------
@@ -767,9 +767,9 @@ sub parse_squid_log_line {
 #
 # Returns:
 # - $retval     - 0 if parse was successful)
-# - $date_time
-# - $rfc931
-# - $client
+# - $timestamp
+# - $username
+# - $ip
 # - $request
 # - $code       - see list /etc/dansguardian-av/languages/*/messages
 # - $detail
@@ -778,7 +778,7 @@ sub parse_squid_log_line {
 #
 # DansGuardian log format:
 #
-# date_time           | rfc931 | client        | request                     | code_type + code_text + detail | method | bytes 
+# timestamp           | username | ip        | request                     | code_type + code_text + detail | method | bytes 
 # -----------------------------------------------------------------------------------------------------------------------------
 # 2005.11.2 11:55:22    bob      192.168.2.212   http://www.clarkconnect.com                                    GET      14482
 # 2006.8.28 13:03:38    bob      192.168.2.212   http://www.sex.com/           *DENIED* Banned site: sex.com    GET      0
@@ -805,9 +805,9 @@ sub parse_squid_log_line {
 sub parse_dansguardian_log_line {
 	my $line = shift or return;
 	my $retval;
-	my $date_time;
-	my $rfc931;
-	my $client;
+	my $timestamp;
+	my $username;
+	my $ip;
 	my $request;
 	my $code;
 	my $detail;
@@ -822,10 +822,10 @@ sub parse_dansguardian_log_line {
 	if ($line =~ /^(\d{4,}\.\d{1,2}\.\d{1,2})/) {
 		$line =~ s/\*SCANNED\* //;  # Gets in the way
 
-		($date, $time, $rfc931, $client, $request, $toeol) = split(/ /, $line, 6);
+		($date, $time, $username, $ip, $request, $toeol) = split(/ /, $line, 6);
 
 		$date = "$date $time";
-		$date_time = parsedate($date);
+		$timestamp = parsedate($date);
 
 		# Empty code information
 		if ($toeol =~ /^ /) {
@@ -869,7 +869,7 @@ sub parse_dansguardian_log_line {
 		$retval = 1;
 	}
 
-	return ($retval, $date_time, $date, $rfc931, $client, $request, $code, $detail, $method, $bytes, $weight);
+	return ($retval, $timestamp, $date, $username, $ip, $request, $code, $detail, $method, $bytes, $weight);
 }
 
 #------------------------------------------------------------------------
