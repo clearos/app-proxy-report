@@ -63,9 +63,7 @@ class Proxy_Report extends ClearOS_Controller
         // Load views
         //-----------
 
-//        $views = array('proxy_report/dashboard', 'proxy_report/domain');
-        $views = array('proxy_report/domains');
-
+        $views = array('proxy_report/domains', 'proxy_report/ips');
 
         $this->page->view_forms($views, lang('proxy_report_app_name'));
     }

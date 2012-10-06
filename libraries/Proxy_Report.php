@@ -52,23 +52,16 @@ clearos_load_language('proxy_report');
 // D E P E N D E N C I E S
 ///////////////////////////////////////////////////////////////////////////////
 
-// Framework
-//----------
-
-use \clearos\framework\Config as Config;
-
 // Classes
 //--------
 
-use \clearos\apps\base\Configuration_File as Configuration_File;
 use \clearos\apps\base\Engine as Engine;
+use \clearos\apps\reports_database\Database_Report as Database_Report;
 use \clearos\apps\web_proxy\Squid as Squid;
-use \clearos\apps\reports_database\Report as Report;
 
-clearos_load_library('base/Configuration_File');
 clearos_load_library('base/Engine');
+clearos_load_library('reports_database/Database_Report');
 clearos_load_library('web_proxy/Squid');
-clearos_load_library('reports_database/Report');
 
 // Exceptions
 //-----------
@@ -96,7 +89,7 @@ clearos_load_library('base/Validation_Exception');
  * @link       http://www.clearfoundation.com/docs/developer/apps/proxy_report/
  */
 
-class Proxy_Report extends Report
+class Proxy_Report extends Database_Report
 {
     ///////////////////////////////////////////////////////////////////////////////
     // C O N S T A N T S
@@ -282,7 +275,7 @@ class Proxy_Report extends Report
      * @throws Engine_Exception
      */
 
-    public function get_domain_data($date_range = 'all', $records = NULL)
+    public function get_domain_data($date_range = 'today', $records = NULL)
     {
         clearos_profile(__METHOD__, __LINE__);
 
@@ -305,6 +298,41 @@ class Proxy_Report extends Report
         foreach ($entries as $entry) {
             $report_data[$entry['domain']]['hits'] = (int) $entry['hits'];
             $report_data[$entry['domain']]['size'] = (int) $entry['size'];
+        }
+
+        return $report_data;
+    }
+
+    /**
+     * Returns IP summary data.
+     *
+     * @return array ip summary data
+     * @throws Engine_Exception
+     */
+
+    public function get_ip_data($date_range = 'today', $records = NULL)
+    {
+        clearos_profile(__METHOD__, __LINE__);
+
+        // Get report data
+        //----------------
+
+        $sql['select'] = 'ip, COUNT(request) AS hits, SUM(bytes)/1024/1024 AS size';
+        $sql['from'] = 'proxy';
+        $sql['where'] = 'domain IS NOT NULL';
+        $sql['group_by'] = 'ip';
+        $sql['order_by'] = 'hits DESC';
+
+        $entries = $this->_run_query($sql, $date_range, $records);
+
+        // Format report data
+        //-------------------
+
+        $report_data = array();
+
+        foreach ($entries as $entry) {
+            $report_data[$entry['ip']]['hits'] = (int) $entry['hits'];
+            $report_data[$entry['ip']]['size'] = (int) $entry['size'];
         }
 
         return $report_data;

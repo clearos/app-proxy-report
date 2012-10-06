@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Domain report controller.
+ * IP report controller.
  *
  * @category   Apps
  * @package    Proxy_Report
@@ -33,14 +33,14 @@
 // D E P E N D E N C I E S
 ///////////////////////////////////////////////////////////////////////////////
 
-require clearos_app_base('reports') . '/controllers/report_controller.php';
+require_once clearos_app_base('reports') . '/controllers/report_controller.php';
 
 ///////////////////////////////////////////////////////////////////////////////
 // C L A S S
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
- * Domain report controller.
+ * IP report controller.
  *
  * @category   Apps
  * @package    Proxy_Report
@@ -51,7 +51,7 @@ require clearos_app_base('reports') . '/controllers/report_controller.php';
  * @link       http://www.clearfoundation.com/docs/developer/apps/proxy_report/
  */
 
-class Domains extends Report_Controller
+class IPs extends Report_Controller
 {
     /**
      * Default report.
@@ -89,6 +89,7 @@ class Domains extends Report_Controller
         //------------------
 
         $this->lang->load('proxy_report');
+        $this->lang->load('network');
         $this->load->library('proxy_report/Proxy_Report');
 
         // Handle range widget
@@ -108,10 +109,10 @@ class Domains extends Report_Controller
             //-------------------------
 
             $data['app'] = 'proxy_report';
-            $data['report'] = 'domains';
-            $data['title'] = lang('proxy_report_domain_summary');
+            $data['report'] = 'ips';
+            $data['title'] = lang('proxy_report_ip_summary');
             $data['headers'] = array(
-                lang('proxy_report_domain'),
+                lang('network_ip'),
                 lang('proxy_report_hits'),
                 lang('proxy_report_size')
             );
@@ -119,11 +120,11 @@ class Domains extends Report_Controller
             // Load report data
             //-----------------
 
-            $report_data = $this->proxy_report->get_domain_data($this->session->userdata('report_sr'));
+            $report_data = $this->proxy_report->get_ip_data($this->session->userdata('report_sr'));
 
             foreach ($report_data as $key => $details) {
                 $item['details'] = array(
-                    $key,
+                    long2ip($key),
                     $details['hits'],
                     $details['size']
                 );
@@ -139,7 +140,7 @@ class Domains extends Report_Controller
         //-----------
 
         $options['javascript'] = array(clearos_app_htdocs('reports') . '/reports.js.php');
-    
+
         if ($type === 'dashboard') {
             $view = 'reports/dashboard_report';
         } else {
@@ -147,7 +148,7 @@ class Domains extends Report_Controller
             $options['type'] = MY_Page::TYPE_REPORT;
         }
 
-        $this->page->view_form($view, $data, lang('proxy_report_domains'), $options);
+        $this->page->view_form($view, $data, lang('proxy_report_ips'), $options);
     }
 
     /**
@@ -169,7 +170,7 @@ class Domains extends Report_Controller
         //----------
 
         try {
-            $data = $this->proxy_report->get_domain_data(
+            $data = $this->proxy_report->get_ip_data(
                 $this->session->userdata('report_sr'),
                 10
             );
