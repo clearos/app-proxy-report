@@ -33,7 +33,7 @@
 // D E P E N D E N C I E S
 ///////////////////////////////////////////////////////////////////////////////
 
-require_once clearos_app_base('reports') . '/controllers/report_controller.php';
+require_once clearos_app_base('reports') . '/controllers/report_factory.php';
 
 ///////////////////////////////////////////////////////////////////////////////
 // C L A S S
@@ -54,136 +54,38 @@ require_once clearos_app_base('reports') . '/controllers/report_controller.php';
 class IPs extends Report_Controller
 {
     /**
-     * Default report.
-     *
-     * @return view
+     * Constructor.
      */
 
-    function index()
+    function __construct()
     {
-        $this->_report('dashboard');
-    }
-
-    /**
-     * Full report.
-     *
-     * @return view
-     */
-
-    function full()
-    {
-        $this->_report('full');
-    }
-
-    /**
-     * Generic report method.
-     *
-     * @param string $type report type
-     *
-     * @return view
-     */
-
-    function _report($type)
-    {
-        // Load dependencies
+        // Load translations
         //------------------
 
-        $this->lang->load('proxy_report');
         $this->lang->load('network');
-        $this->load->library('proxy_report/Proxy_Report');
+        $this->lang->load('proxy_report');
 
-        // Handle range widget
-        //--------------------
+        // App coordinates
+        //----------------
 
-        parent::_handle_range();
+        $report['app'] = 'proxy_report';
+        $report['library'] = 'Proxy_Report';
+        $report['report'] = 'ips';
+        $report['method'] = 'get_ip_data';
 
-        $data['range'] = $this->session->userdata('report_sr');
-        $data['ranges'] = self::_get_summary_ranges();
+        // Translations
+        //-------------
 
-        // Load view data
-        //---------------
+        $report['title'] = lang('proxy_report_ip_summary');
+        $report['headers'] = array(
+            lang('network_ip'),
+            lang('proxy_report_hits'),
+            lang('proxy_report_size')
+        );
 
-        try {
+        // Load report
+        //------------
 
-            // Define report parameters
-            //-------------------------
-
-            $data['app'] = 'proxy_report';
-            $data['report'] = 'ips';
-            $data['title'] = lang('proxy_report_ip_summary');
-            $data['headers'] = array(
-                lang('network_ip'),
-                lang('proxy_report_hits'),
-                lang('proxy_report_size')
-            );
-
-            // Load report data
-            //-----------------
-
-            $report_data = $this->proxy_report->get_ip_data($this->session->userdata('report_sr'));
-
-            foreach ($report_data as $key => $details) {
-                $item['details'] = array(
-                    long2ip($key),
-                    $details['hits'],
-                    $details['size']
-                );
-
-                $data['items'][] = $item;
-            }
-        } catch (Exception $e) {
-            $this->page->view_exception($e);
-            return;
-        }
-
-        // Load views
-        //-----------
-
-        $options['javascript'] = array(clearos_app_htdocs('reports') . '/reports.js.php');
-
-        if ($type === 'dashboard') {
-            $view = 'reports/dashboard_report';
-        } else {
-            $view = 'reports/full_report';
-            $options['type'] = MY_Page::TYPE_REPORT;
-        }
-
-        $this->page->view_form($view, $data, lang('proxy_report_ips'), $options);
-    }
-
-    /**
-     * Report data.
-     *
-     * @return JSON report data
-     */
-
-    function get_data()
-    {
-        clearos_profile(__METHOD__, __LINE__);
-
-        // Load dependencies
-        //------------------
-
-        $this->load->library('proxy_report/Proxy_Report');
-
-        // Load data
-        //----------
-
-        try {
-            $data = $this->proxy_report->get_ip_data(
-                $this->session->userdata('report_sr'),
-                10
-            );
-        } catch (Exception $e) {
-            echo json_encode(array('code' => clearos_exception_code($e), 'errmsg' => clearos_exception_message($e)));
-        }
-
-        // Show data
-        //----------
-
-        header('Cache-Control: no-cache, must-revalidate');
-        header('Expires: Fri, 01 Jan 2010 05:00:00 GMT');
-        header('Content-type: application/json');
-        echo json_encode($data);
+        parent::__construct($report);
     }
 }

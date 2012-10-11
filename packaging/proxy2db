@@ -44,7 +44,6 @@
 use strict;
 use DBI;
 use Digest::MD5 qw(md5 md5_hex md5_base64);
-use Geo::IP;
 use Getopt::Std;
 use IO::Zlib;
 use Socket;
@@ -71,7 +70,6 @@ sub startup();
 sub db_connect();
 sub db_disconnect();
 sub get_proxy_log_list();
-sub get_resolved_hostnames();
 sub get_filter_messages();
 sub load_dataset();
 sub load_filter_logs($$$);
@@ -87,7 +85,6 @@ my $g_opt_string = 'fahv';
 my %g_opt;
 my $g_dbh;
 my %g_unresolved;
-my %g_resolved;
 my @g_filter_logs;
 my %g_filter_messages;
 my $g_filter_fileseek = 0;
@@ -117,11 +114,8 @@ usage() if defined $g_opt{h};
 
 startup();
 db_connect();
-%g_resolved = get_resolved_hostnames();
-
 get_filter_messages();
 process_proxy_log();
-update_hostnames();
 db_disconnect();
 
 exit 0;
@@ -192,36 +186,6 @@ sub get_filter_messages() {
 			$g_filter_messages{$2} = $1 if (/^"(\d+)","(.*)"$/);
 		}
 	}
-}
-
-#------------------------------------------------------------------------
-# get_resolved_hostnames - returns an array of resolved hostnames
-#------------------------------------------------------------------------
-
-sub get_resolved_hostnames() {
-	my %resolved;
-	my @data;
-
-	my $query = qq|
-		SELECT ip AS iplong, INET_NTOA(ip) AS ip
-		FROM hostnames WHERE resolved = 1
-		GROUP BY ip
-	|;
-
-	my $sth = $g_dbh->prepare($query);
-
-	# TODO: attempt to repair hostnames table if something goes wrong.
-	# See process_proxy_log for an example.
-	$sth->execute or die "Could not execute statement: " . $sth->errstr;
-
-	while (@data = $sth->fetchrow_array()) {
-		my $key = $data[1];
-		$resolved{$key} = $data[2];
-	}
-
-	$sth->finish;
-
-	return %resolved;
 }
 
 #------------------------------------------------------------------------
@@ -627,66 +591,6 @@ sub load_dataset() {
 	undef(%g_dataset);
 	undef(%g_filterset);
 	eval { $g_dbh->commit(); };
-}
-
-#------------------------------------------------------------------------
-# update_hostname - updates the hostnames table with GeoIP data
-#------------------------------------------------------------------------
-
-sub update_hostnames {
-
-	return if (! -e $FILE_GEOIP); # Bail if GeoIP not installed
-
-	my $query = qq|
-		INSERT INTO hostnames (ip, description, resolved, hostname, country_code, country_name, city, region, latitude, longitude)
-		VALUES (INET_ATON(?) , ? , ? , ? , ?, ? , ? , ? , ? , ?)
-	|;
-
-	my $sth = $g_dbh->prepare($query);
-
-	my $geoip = Geo::IP->open($FILE_GEOIP, GEOIP_STANDARD);
-	my ($key, $hostname, $ip, $country_code, $country_name, $city, $region, $latitude, $longitude);
-
-	while (($key, $hostname) = each(%g_unresolved)){
-		if (is_ipv4($hostname)) {
-			$ip = $hostname;
-			$hostname = gethostbyaddr(inet_aton($ip), AF_INET);
-		} else {
-			$ip = gethostbyname($hostname);
-		}
-
-		my $record = $geoip->record_by_name($ip);
-		my $description = $ip;
-		my $isresolved = 1;
-
-		if ($record) {
-			$country_code = $record->country_code;
-			$country_name = $record->country_name;
-			$city = $record->city;
-			$region = $record->region;
-			$latitude = $record->latitude;
-			$longitude = $record->longitude;
-		} else {
-			$country_code = 'UNK';
-			$country_name = 'UNK';
-			$city = 'UNK';
-			$region = 'UNK';
-			$latitude = 0;
-			$longitude = 0;
-		}
-
-		eval {
-			$sth->execute($ip, $description, $isresolved, $hostname, $country_code, $country_name, $city, $region, $latitude, $longitude);
-		};
-
-		if ($@) {
-			print STDERR "VALUES=" . join("\t", $ip, $description, $isresolved, $hostname, $country_code, $country_name, $city, $region, $latitude, $longitude) . "\n";
-			print STDERR $query;
-			die $!;  # FIXME: dying is a bit harsh?
-		};
-
-		$sth->finish;
-	}
 }
 
 #------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Proxy and filter dashboard controller.
+ * Domain detail report controller.
  *
  * @category   Apps
  * @package    Proxy_Report
@@ -30,11 +30,17 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
+// D E P E N D E N C I E S
+///////////////////////////////////////////////////////////////////////////////
+
+require clearos_app_base('reports') . '/controllers/report_controller.php';
+
+///////////////////////////////////////////////////////////////////////////////
 // C L A S S
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
- * Proxy and filter dashboard controller.
+ * Domain detail report controller.
  *
  * @category   Apps
  * @package    Proxy_Report
@@ -45,25 +51,82 @@
  * @link       http://www.clearfoundation.com/docs/developer/apps/proxy_report/
  */
 
-class Dashboard extends ClearOS_Controller
+class Domain_Detail extends Report_Controller
 {
     /**
-     * Default controller.
+     * Default report.
      *
      * @return view
      */
 
-    function index()
+    function index($domain)
+    {
+        $this->_report('dashboard', $domain);
+    }
+
+    /**
+     * Full report.
+     *
+     * @return view
+     */
+
+    function full()
+    {
+        $this->_report('full', $domain);
+    }
+
+    /**
+     * Generic report method.
+     *
+     * @param string $type report type
+     *
+     * @return view
+     */
+
+    function _report($type, $domain)
     {
         // Load dependencies
         //------------------
 
+        $this->lang->load('base');
         $this->lang->load('proxy_report');
+        $this->load->library('proxy_report/Proxy_Report');
+
+        // Handle range widget
+        //--------------------
+
+        parent::_handle_range();
+
+        $data['range'] = $this->session->userdata('report_sr');
+        $data['ranges'] = self::_get_summary_ranges();
+
+$this->session->set_userdata('report_detail', $domain);
+
+        // Define report parameters
+        //-------------------------
+
+        $data['app'] = 'proxy_report';
+        $data['report'] = 'domain_detail';
+        $data['title'] = lang('proxy_report_domain_details');
+        $data['headers'] = array(
+            lang('base_date'),
+            lang('proxy_report_hits'),
+            lang('proxy_report_size')
+        );
 
         // Load views
         //-----------
 
-        $this->page->view_form('proxy_report/dashboard', array(), lang('proxy_report_proxy_report_dashboard'));
+        $options['javascript'] = array(clearos_app_htdocs('reports') . '/reports.js.php');
+    
+        if ($type === 'dashboard') {
+            $view = 'reports/dashboard_report';
+        } else {
+            $view = 'reports/full_report';
+            $options['type'] = MY_Page::TYPE_REPORT;
+        }
+
+        $this->page->view_form($view, $data, lang('proxy_report_domains'), $options);
     }
 
     /**
@@ -72,7 +135,7 @@ class Dashboard extends ClearOS_Controller
      * @return JSON report data
      */
 
-    function get_data()
+    function get_data($domain)
     {
         clearos_profile(__METHOD__, __LINE__);
 
@@ -85,7 +148,11 @@ class Dashboard extends ClearOS_Controller
         //----------
 
         try {
-            $data = $this->proxy_report->get_dashboard_data();
+            $data = $this->proxy_report->get_domain_detail_data(
+                $this->session->userdata('report_sr'),
+                10,
+                $this->session->userdata('report_detail')
+            );
         } catch (Exception $e) {
             echo json_encode(array('code' => clearos_exception_code($e), 'errmsg' => clearos_exception_message($e)));
         }

@@ -5,6 +5,7 @@ $lang['proxy_report_app_description'] = 'The Filter and Proxy Report provides a 
 $lang['proxy_report_proxy_report_dashboard'] = 'Proxy Report Dashboard';
 $lang['proxy_report_domain'] = 'Domain';
 $lang['proxy_report_domains'] = 'Domains';
+$lang['proxy_report_domain_details'] = 'Domain Details';
 $lang['proxy_report_domain_summary'] = 'Domain Summary';
 $lang['proxy_report_hits'] = 'Hits';
 $lang['proxy_report_size'] = 'Size';
