@@ -1,7 +1,7 @@
 
 Name: app-proxy-report
 Epoch: 1
-Version: 1.2.9
+Version: 1.4.0
 Release: 1%{dist}
 Summary: Filter and Proxy Report
 License: GPLv3
@@ -21,6 +21,7 @@ Group: ClearOS/Libraries
 Requires: app-base-core
 Requires: app-reports-core
 Requires: app-reports-database-core
+Requires: app-tasks-core
 
 %description core
 The Filter and Proxy Report provides a view of web usage on your network.
@@ -35,6 +36,8 @@ This package provides the core API and libraries.
 mkdir -p -m 755 %{buildroot}/usr/clearos/apps/proxy_report
 cp -r * %{buildroot}/usr/clearos/apps/proxy_report/
 
+install -D -m 0644 packaging/app-proxy-report.cron %{buildroot}/etc/cron.d/app-proxy-report
+install -D -m 0755 packaging/proxy2db %{buildroot}/usr/sbin/proxy2db
 
 %post
 logger -p local6.notice -t installer 'app-proxy-report - installing'
@@ -77,3 +80,5 @@ exit 0
 /usr/clearos/apps/proxy_report/deploy
 /usr/clearos/apps/proxy_report/language
 /usr/clearos/apps/proxy_report/libraries
+/etc/cron.d/app-proxy-report
+/usr/sbin/proxy2db

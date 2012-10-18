@@ -30,6 +30,12 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
+// D E P E N D E N C I E S
+///////////////////////////////////////////////////////////////////////////////
+
+require_once clearos_app_base('reports') . '/controllers/report_factory.php';
+
+///////////////////////////////////////////////////////////////////////////////
 // C L A S S
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -45,26 +51,19 @@
  * @link       http://www.clearfoundation.com/docs/developer/apps/proxy_report/
  */
 
-class Proxy_Report extends ClearOS_Controller
+class Proxy_Report extends Report_Controller
 {
     /**
-     * Proxy and filter report summary view.
-     *
-     * @return view
+     * Constructor.
      */
 
-    function index()
+    function __construct()
     {
-        // Load libraries
-        //---------------
+        $reports = array(
+            'proxy_report/domains',
+            'proxy_report/ips'
+        );
 
-        $this->lang->load('proxy_report');
-
-        // Load views
-        //-----------
-
-        $views = array('proxy_report/domains', 'proxy_report/ips');
-
-        $this->page->view_forms($views, lang('proxy_report_app_name'));
+        parent::__construct('proxy_report', 'Proxy_Report', 'overview', $reports);
     }
 }

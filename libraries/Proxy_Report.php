@@ -219,13 +219,14 @@ class Proxy_Report extends Database_Report
         // Format report data
         //-------------------
 
+        $info = $this->get_report_info('domains');
+
         $report_data = array();
-        $report_data['header'] = array(lang('network_domain'), lang('proxy_report_hits'), lang('proxy_report_size'));
-        $report_data['type'] = array('string', 'int', 'int');
+        $report_data['header'] = $info['headers'];
+        $report_data['type'] = $info['types'];
 
         foreach ($entries as $entry) 
             $report_data['data'][] = array($entry['domain'], (int) $entry['hits'], (int) $entry['size']);
-            // FIXME $report_data['data'][] = array("<a href='/bob'>" . $entry['domain'] . "</a>", (int) $entry['hits'], (int) $entry['size']);
 
         return $report_data;
     }
@@ -295,9 +296,11 @@ $domain = 'www.facebook.com';
         // Format report data
         //-------------------
 
+        $info = $this->get_report_info('ips');
+
         $report_data = array();
-        $report_data['header'] = array(lang('network_ip'), lang('proxy_report_hits'), lang('proxy_report_size'));
-        $report_data['type'] = array('ip', 'int', 'int');
+        $report_data['header'] = $info['headers'];
+        $report_data['type'] = $info['types'];
 
         foreach ($entries as $entry)
             $report_data['data'][] = array($entry['ip'], (int) $entry['hits'], (int) $entry['size']);
@@ -306,10 +309,76 @@ $domain = 'www.facebook.com';
     }
 
     ///////////////////////////////////////////////////////////////////////////////
-    // V A L I D A T I O N   R O U T I N E S
-    ///////////////////////////////////////////////////////////////////////////////
-
-    ///////////////////////////////////////////////////////////////////////////////
     // P R I V A T E   M E T H O D S
     ///////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Report engine definition.
+     *
+     * @return array report definition
+     */
+    
+    protected function _get_definition()
+    {
+        // Overview
+        //---------
+
+        $reports['overview'] = array(
+            'title' => lang('base_overview'),
+            'url' => 'proxy_report',
+            'app' => 'proxy_report',
+            'report' => 'overview',
+        );
+
+        // IP Summary
+        //-----------
+
+        $reports['ips'] = array(
+            'title' => lang('proxy_report_ip_summary'),
+            'method' => 'get_ip_data',
+            'app' => 'proxy_report',
+            'url' => 'proxy_report/ips/index/full',
+            'report' => 'ips',
+            'chart_type' => 'pie',
+            'library' => 'Proxy_Report',
+            'headers' => array(
+                lang('network_ip'),
+                lang('proxy_report_hits'),
+                lang('proxy_report_size')
+            ),
+            'types' => array(
+                'ip',
+                'int',
+                'int'
+            ),
+        );
+
+        // Domains Summary
+        //----------------
+
+        $reports['domains'] = array(
+            'title' => lang('proxy_report_domain_summary'),
+            'method' => 'get_domain_data',
+            'app' => 'proxy_report',
+            'url' => 'proxy_report/domains/index/full',
+            'report' => 'domains',
+            'chart_type' => 'bar',
+            'library' => 'Proxy_Report',
+            'headers' => array(
+                lang('proxy_report_domain'),
+                lang('proxy_report_hits'),
+                lang('proxy_report_size')
+            ),
+            'types' => array(
+                'string',
+                'int',
+                'int'
+            ),
+        );
+
+        // Done
+        //-----
+
+        return $reports;
+    }
 }

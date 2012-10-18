@@ -5,7 +5,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 $app['basename'] = 'proxy_report';
-$app['version'] = '1.2.9';
+$app['version'] = '1.4.0';
 $app['release'] = '1';
 $app['vendor'] = 'ClearFoundation';
 $app['packager'] = 'ClearFoundation';
@@ -19,7 +19,7 @@ $app['description'] = lang('proxy_report_app_description');
 
 $app['name'] = lang('proxy_report_app_name');
 $app['category'] = lang('base_category_reports');
-$app['subcategory'] = lang('base_subcategory_resources');
+$app['subcategory'] = lang('base_category_network');
 
 /////////////////////////////////////////////////////////////////////////////
 // Controllers
@@ -35,4 +35,13 @@ $app['controllers']['settings']['title'] = lang('base_settings');
 $app['core_requires'] = array(
     'app-reports-core',
     'app-reports-database-core',
+    'app-tasks-core',
+);
+
+$app['core_file_manifest'] = array(
+    'app-proxy-report.cron' => array( 'target' => '/etc/cron.d/app-proxy-report'),
+    'proxy2db' => array(
+        'target' => '/usr/sbin/proxy2db',
+        'mode' => '0755',
+    ),
 );

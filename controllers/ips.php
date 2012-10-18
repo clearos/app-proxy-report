@@ -59,33 +59,6 @@ class IPs extends Report_Controller
 
     function __construct()
     {
-        // Load translations
-        //------------------
-
-        $this->lang->load('network');
-        $this->lang->load('proxy_report');
-
-        // App coordinates
-        //----------------
-
-        $report['app'] = 'proxy_report';
-        $report['library'] = 'Proxy_Report';
-        $report['report'] = 'ips';
-        $report['method'] = 'get_ip_data';
-
-        // Translations
-        //-------------
-
-        $report['title'] = lang('proxy_report_ip_summary');
-        $report['headers'] = array(
-            lang('network_ip'),
-            lang('proxy_report_hits'),
-            lang('proxy_report_size')
-        );
-
-        // Load report
-        //------------
-
-        parent::__construct($report);
+        parent::__construct('proxy_report', 'Proxy_Report', 'ips');
     }
 }

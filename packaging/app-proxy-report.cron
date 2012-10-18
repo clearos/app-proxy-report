@@ -1,0 +1,1 @@
+* 2 * * * root /usr/sbin/proxy2db >/dev/null 2>&1

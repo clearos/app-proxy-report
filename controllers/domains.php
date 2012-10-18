@@ -33,7 +33,7 @@
 // D E P E N D E N C I E S
 ///////////////////////////////////////////////////////////////////////////////
 
-require_once clearos_app_base('reports') . '/controllers/report_controller.php';
+require_once clearos_app_base('reports') . '/controllers/report_factory.php';
 
 ///////////////////////////////////////////////////////////////////////////////
 // C L A S S
@@ -59,32 +59,6 @@ class Domains extends Report_Controller
 
     function __construct()
     {
-        // Load translations
-        //------------------
-
-        $this->lang->load('proxy_report');
-
-        // App coordinates
-        //----------------
-
-        $report['app'] = 'proxy_report';
-        $report['library'] = 'Proxy_Report';
-        $report['report'] = 'domains';
-        $report['method'] = 'get_domain_data';
-
-        // Translations
-        //-------------
-
-        $report['title'] = lang('proxy_report_domain_summary');
-        $report['headers'] = array(
-            lang('proxy_report_domain'),
-            lang('proxy_report_hits'),
-            lang('proxy_report_size')
-        );
-
-        // Load report
-        //------------
-
-        parent::__construct($report);
+        parent::__construct('proxy_report', 'Proxy_Report', 'domains');
     }
 }
