@@ -118,6 +118,9 @@ get_filter_messages();
 process_proxy_log();
 db_disconnect();
 
+# TODO: quick hack for beta
+`/bin/rm /var/clearos/reports_database/cache/proxy/*`;
+
 exit 0;
 
 #########################################################################
