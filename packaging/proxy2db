@@ -819,7 +819,7 @@ sub db_connect() {
 			if ($DBI::err eq 2003) {
 				system("/sbin/service system-mysqld start >/dev/null 2>&1");
 			} else {
-				system("/usr/clearos/apps/proxy_report/deploy/initialize-tables");
+				system("/usr/sbin/initialize-report-tables proxy /usr/clearos/apps/proxy_report/deploy/db_tables.sql");
 			}
 
 			$retry++;
