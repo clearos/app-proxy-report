@@ -214,7 +214,7 @@ class Proxy_Report extends Database_Report
         $sql['group_by'] = 'domain';
         $sql['order_by'] = 'hits DESC';
 
-        $entries = $this->_run_query($sql, $date_range, $records);
+        $entries = $this->_run_query('proxy', $sql, $date_range, $records);
 
         // Format report data
         //-------------------
@@ -256,7 +256,7 @@ $domain = 'www.facebook.com';
         $sql['group_by'] = 'timespan';
         $sql['order_by'] = 'timespan';
 
-        $entries = $this->_run_query($sql, $range, $timespan);
+        $entries = $this->_run_query('proxy', $sql, $range, $timespan);
 
         // Format report data
         //-------------------
@@ -291,7 +291,7 @@ $domain = 'www.facebook.com';
         $sql['group_by'] = 'ip';
         $sql['order_by'] = 'hits DESC';
 
-        $entries = $this->_run_query($sql, $date_range, $records);
+        $entries = $this->_run_query('proxy', $sql, $date_range, $records);
 
         // Format report data
         //-------------------
