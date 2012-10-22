@@ -134,14 +134,14 @@ exit 0;
 #------------------------------------------------------------------------
 
 sub startup() {
-	my $isrunning = `/sbin/pidof -x proxy2db`;
-	chomp($isrunning);
+    my $isrunning = `/sbin/pidof -x proxy2db`;
+    chomp($isrunning);
 
-	if ($isrunning && ($isrunning ne $$)) {
-		log_msg("Already running.");
-		print("Already running\n");
-		exit 0;
-	}
+    if ($isrunning && ($isrunning ne $$)) {
+        log_msg("Already running.");
+        print("Already running\n");
+        exit 0;
+    }
 }
 
 #------------------------------------------------------------------------
@@ -149,10 +149,10 @@ sub startup() {
 #------------------------------------------------------------------------
 
 sub log_msg($) {
-	setlogsock('unix');
-	openlog('proxy2db', 'ndelay', $SYSLOG_NAME);
-	syslog('info', $_[0]);
-	closelog();
+    setlogsock('unix');
+    openlog('proxy2db', 'ndelay', $SYSLOG_NAME);
+    syslog('info', $_[0]);
+    closelog();
 }
 
 #------------------------------------------------------------------------
@@ -171,24 +171,24 @@ sub log_msg($) {
 #------------------------------------------------------------------------
 
 sub get_filter_messages() {
-	my @filelist;
+    my @filelist;
 
-	if (-d "/etc/dansguardian-av/languages") {
-		@filelist = `/usr/bin/find /etc/dansguardian-av/languages -name messages`;
-	} elsif (-d "/etc/dansguardian/languages") {
-		@filelist = `/usr/bin/find /etc/dansguardian/languages -name messages`;
-	} else {
-		return;
-	}
+    if (-d "/etc/dansguardian-av/languages") {
+        @filelist = `/usr/bin/find /etc/dansguardian-av/languages -name messages`;
+    } elsif (-d "/etc/dansguardian/languages") {
+        @filelist = `/usr/bin/find /etc/dansguardian/languages -name messages`;
+    } else {
+        return;
+    }
 
-	foreach my $file (@filelist) {
-		chomp($file);
-		open(MESSAGES, $file) or next;
+    foreach my $file (@filelist) {
+        chomp($file);
+        open(MESSAGES, $file) or next;
 
-		while (<MESSAGES>) {
-			$g_filter_messages{$2} = $1 if (/^"(\d+)","(.*)"$/);
-		}
-	}
+        while (<MESSAGES>) {
+            $g_filter_messages{$2} = $1 if (/^"(\d+)","(.*)"$/);
+        }
+    }
 }
 
 #------------------------------------------------------------------------
@@ -196,35 +196,35 @@ sub get_filter_messages() {
 #------------------------------------------------------------------------
 
 sub get_proxy_log_list() {
-	my $directory = "/var/log/squid";
-	my $basefile = "access.log";
+    my $directory = "/var/log/squid";
+    my $basefile = "access.log";
 
-	my @loglist;
+    my @loglist;
 
-	if (defined($g_opt{a})) {
-		# Implies a -f / force
-		$g_opt{f} = 1;
+    if (defined($g_opt{a})) {
+        # Implies a -f / force
+        $g_opt{f} = 1;
 
-		opendir LOGDIR, $directory or die $!;
+        opendir LOGDIR, $directory or die $!;
 
-		while (my $logfile = readdir LOGDIR) {
-			if (($logfile =~ /$basefile$/) || ($logfile =~ /$basefile.\d+$/) || ($logfile =~ /$basefile.\d+.gz$/)) {
-				$logfile =~ s/$basefile//;
-				$logfile =~ s/\.gz$//;
-				push @loglist, "$logfile";
-			}
-		}
+        while (my $logfile = readdir LOGDIR) {
+            if (($logfile =~ /$basefile$/) || ($logfile =~ /$basefile.\d+$/) || ($logfile =~ /$basefile.\d+.gz$/)) {
+                $logfile =~ s/$basefile//;
+                $logfile =~ s/\.gz$//;
+                push @loglist, "$logfile";
+            }
+        }
 
-		@loglist = sort @loglist;
-		@loglist = reverse @loglist;
+        @loglist = sort @loglist;
+        @loglist = reverse @loglist;
 
-		closedir LOGDIR; 
+        closedir LOGDIR; 
 
-	} else {
-		push @loglist, "" if ((-e "$directory/$basefile") || (-e "$directory/$basefile.gz"));
-	}
+    } else {
+        push @loglist, "" if ((-e "$directory/$basefile") || (-e "$directory/$basefile.gz"));
+    }
 
-	return @loglist;
+    return @loglist;
 }
 
 #------------------------------------------------------------------------
@@ -239,147 +239,147 @@ sub get_proxy_log_list() {
 
 sub process_proxy_log() {
 
-	# Determine which log files to process
-	#-------------------------------------
+    # Determine which log files to process
+    #-------------------------------------
 
-	my @filenumbers = get_proxy_log_list();
+    my @filenumbers = get_proxy_log_list();
 
-	# Determine time of last run
-	#---------------------------
+    # Determine time of last run
+    #---------------------------
 
-	my $lastrun = 0;
-	my $query = qq|select UNIX_TIMESTAMP(MAX(timestamp)) FROM proxy|;
-	my $sth = $g_dbh->prepare($query);
-	eval { $sth->execute; };
+    my $lastrun = 0;
+    my $query = qq|select UNIX_TIMESTAMP(MAX(timestamp)) FROM proxy|;
+    my $sth = $g_dbh->prepare($query);
+    eval { $sth->execute; };
 
-	if ($@) {
-		if ($DBI::err) {
-			# Repair the table and try again
-			log_msg("Repairing proxy table.");
-			$sth = $g_dbh->prepare("repair table proxy");
-			$sth->execute or die "Could not execute statement: " . $sth->errstr;
+    if ($@) {
+        if ($DBI::err) {
+            # Repair the table and try again
+            log_msg("Repairing proxy table.");
+            $sth = $g_dbh->prepare("repair table proxy");
+            $sth->execute or die "Could not execute statement: " . $sth->errstr;
 
-			$sth = $g_dbh->prepare($query);
-			$sth->execute or die "Could not execute statement: " . $sth->errstr;
-		}
-	}
+            $sth = $g_dbh->prepare($query);
+            $sth->execute or die "Could not execute statement: " . $sth->errstr;
+        }
+    }
 
-	my $lastrunval = $sth->fetchrow;
-	$lastrun = $lastrunval if ($lastrunval);
-	$sth->finish;
+    my $lastrunval = $sth->fetchrow;
+    $lastrun = $lastrunval if ($lastrunval);
+    $sth->finish;
 
-	# Load the log data
-	#------------------
+    # Load the log data
+    #------------------
 
-	my $retval;
-	my $linecount = 0;
-	my $datacount = 0;
-	my $date_from;
-	my ($timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5);
+    my $retval;
+    my $linecount = 0;
+    my $datacount = 0;
+    my $date_from;
+    my ($timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5);
 
-	foreach my $filenumber (@filenumbers) {
+    foreach my $filenumber (@filenumbers) {
 
-		# Open the log file
-		#------------------
+        # Open the log file
+        #------------------
 
-		my $logfile = "/var/log/squid/access.log" . $filenumber;
-	
-		if (-e "$logfile.gz" ) {
-			$logfile = "$logfile.gz";
-			tie *PROXY, 'IO::Zlib', $logfile, "rb";
-		} elsif (-e "$logfile" ) {
-			open (PROXY, "< $logfile") or die $!;
-		} else {
-			next;
-		}
+        my $logfile = "/var/log/squid/access.log" . $filenumber;
+    
+        if (-e "$logfile.gz" ) {
+            $logfile = "$logfile.gz";
+            tie *PROXY, 'IO::Zlib', $logfile, "rb";
+        } elsif (-e "$logfile" ) {
+            open (PROXY, "< $logfile") or die $!;
+        } else {
+            next;
+        }
 
-		print "Processing $logfile ";
-	
-		# If this is the first time, we are efficient at find a good place 
-		# to start scanning the file.
-		#-----------------------------------------------------------------
+        print "Processing $logfile ";
+    
+        # If this is the first time, we are efficient at find a good place 
+        # to start scanning the file.
+        #-----------------------------------------------------------------
 
-		if ($g_proxy_fileseek == 0) {
-			$timestamp = 0;
-			my $safe_position = 0;
-			my $current_position = 0;
-			my $proxyline;
-			
-			while ($timestamp < $lastrun) {
-				print "debug: searching proxy log at byte $current_position\n" if $g_debug;
-				$safe_position = $current_position;
-				$current_position = $current_position + 1000000;
+        if ($g_proxy_fileseek == 0) {
+            $timestamp = 0;
+            my $safe_position = 0;
+            my $current_position = 0;
+            my $proxyline;
+            
+            while ($timestamp < $lastrun) {
+                print "debug: searching proxy log at byte $current_position\n" if $g_debug;
+                $safe_position = $current_position;
+                $current_position = $current_position + 1000000;
 
-				seek PROXY, $current_position, 0;
-				$proxyline = <PROXY>; # First read may incomplete line
-				$proxyline = <PROXY>;
-				last if (!$proxyline);
+                seek PROXY, $current_position, 0;
+                $proxyline = <PROXY>; # First read may incomplete line
+                $proxyline = <PROXY>;
+                last if (!$proxyline);
 
-				($retval, $timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5) = parse_squid_log_line($proxyline);
-			}
+                ($retval, $timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5) = parse_squid_log_line($proxyline);
+            }
 
-			$g_proxy_fileseek = $safe_position;
+            $g_proxy_fileseek = $safe_position;
 
-			seek PROXY, $g_proxy_fileseek, 0;
-		}
+            seek PROXY, $g_proxy_fileseek, 0;
+        }
 
-		# Process the log file
-		#---------------------
+        # Process the log file
+        #---------------------
 
-		while (my $line = <PROXY>) {
-			$linecount++;
-	
-			($retval, $timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5) = parse_squid_log_line($line);
-			next if ($retval == 1);
+        while (my $line = <PROXY>) {
+            $linecount++;
+    
+            ($retval, $timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5) = parse_squid_log_line($line);
+            next if ($retval == 1);
 
-			if (defined($g_opt{f}) || ($timestamp >= $lastrun)) {
-				next if ($request =~ /:82.public.filtered.php/);
+            if (defined($g_opt{f}) || ($timestamp >= $lastrun)) {
+                next if ($request =~ /:82.public.filtered.php/);
 
-				print "debug: loading proxy request $timestamp|$request\n" if $g_debug;
-				$g_dataset{$timestamp . "|" . $request}->{timestamp} = $timestamp;
-				$g_dataset{$timestamp . "|" . $request}->{duration} = $duration;
-				$g_dataset{$timestamp . "|" . $request}->{ip} = $ip;
-				$g_dataset{$timestamp . "|" . $request}->{cache_code} = $cache_code;
-				$g_dataset{$timestamp . "|" . $request}->{status} = $status;
-				$g_dataset{$timestamp . "|" . $request}->{bytes} = $bytes;
-				$g_dataset{$timestamp . "|" . $request}->{method} = $method;
-				$g_dataset{$timestamp . "|" . $request}->{request} = $request;
-				$g_dataset{$timestamp . "|" . $request}->{username} = $username;
-				$g_dataset{$timestamp . "|" . $request}->{content_type} = $content_type;
-				$g_dataset{$timestamp . "|" . $request}->{domain} = $domain;
-				$g_dataset{$timestamp . "|" . $request}->{md5} = $md5;
-				$datacount++;
+                print "debug: loading proxy request $timestamp|$request\n" if $g_debug;
+                $g_dataset{$timestamp . "|" . $request}->{timestamp} = $timestamp;
+                $g_dataset{$timestamp . "|" . $request}->{duration} = $duration;
+                $g_dataset{$timestamp . "|" . $request}->{ip} = $ip;
+                $g_dataset{$timestamp . "|" . $request}->{cache_code} = $cache_code;
+                $g_dataset{$timestamp . "|" . $request}->{status} = $status;
+                $g_dataset{$timestamp . "|" . $request}->{bytes} = $bytes;
+                $g_dataset{$timestamp . "|" . $request}->{method} = $method;
+                $g_dataset{$timestamp . "|" . $request}->{request} = $request;
+                $g_dataset{$timestamp . "|" . $request}->{username} = $username;
+                $g_dataset{$timestamp . "|" . $request}->{content_type} = $content_type;
+                $g_dataset{$timestamp . "|" . $request}->{domain} = $domain;
+                $g_dataset{$timestamp . "|" . $request}->{md5} = $md5;
+                $datacount++;
 
-				if (($datacount % 3000) == 0){
-					load_filter_logs($date_from, $timestamp, $filenumber);
-					load_dataset();
-					$date_from = $timestamp;
-					print "." if (!$g_debug);
-				} elsif ($datacount == 1) {
-					$date_from = $timestamp;
-				}
-			}
-		}
+                if (($datacount % 3000) == 0){
+                    load_filter_logs($date_from, $timestamp, $filenumber);
+                    load_dataset();
+                    $date_from = $timestamp;
+                    print "." if (!$g_debug);
+                } elsif ($datacount == 1) {
+                    $date_from = $timestamp;
+                }
+            }
+        }
 
-		load_filter_logs($date_from, $timestamp, $filenumber);
-		load_dataset();
-	
-		if ($logfile =~ /\.gz$/) {
-			untie *PROXY;
-		} else {
-			close PROXY;
-		}
+        load_filter_logs($date_from, $timestamp, $filenumber);
+        load_dataset();
+    
+        if ($logfile =~ /\.gz$/) {
+            untie *PROXY;
+        } else {
+            close PROXY;
+        }
 
-		$g_proxy_fileseek = 0;
+        $g_proxy_fileseek = 0;
 
-		print "\n";
-	}
+        print "\n";
+    }
 
-	# Show summary information
-	if ($g_dbcount > 0) {
-		print qq|Processed $linecount proxy log lines - $g_dbcount records added.\n|;
-		log_msg("Processed $linecount proxy log lines - $g_dbcount records added.");
-	}
+    # Show summary information
+    if ($g_dbcount > 0) {
+        print qq|Processed $linecount proxy log lines - $g_dbcount records added.\n|;
+        log_msg("Processed $linecount proxy log lines - $g_dbcount records added.");
+    }
 }
 
 #------------------------------------------------------------------------
@@ -391,98 +391,98 @@ sub process_proxy_log() {
 #   ... up to a few seconds.  A fuzz factor is used.
 # - There's no guarantee that the order in the logs will be the same.
 # - The file seek was an afterthought
-#	
+#    
 #--------------------------------------------------------------------
 
 sub load_filter_logs($$$) {
-	my $date_from = $_[0];
-	my $date_to = $_[1];
-	my $filenumber = $_[2];
-	my $retval, my $timestamp, my $date, my $username, my $ip, my $request, my $code, my $detail, my $method, my $bytes, my $weight;
+    my $date_from = $_[0];
+    my $date_to = $_[1];
+    my $filenumber = $_[2];
+    my $retval, my $timestamp, my $date, my $username, my $ip, my $request, my $code, my $detail, my $method, my $bytes, my $weight;
 
-	# Fuzz the time a bit
-	#--------------------
+    # Fuzz the time a bit
+    #--------------------
 
-	$date_from =~ s/\..*//;
-	$date_from = $date_from - 3;
+    $date_from =~ s/\..*//;
+    $date_from = $date_from - 3;
 
-	$date_to =~ s/\..*//;
-	$date_to = $date_to + 3;
+    $date_to =~ s/\..*//;
+    $date_to = $date_to + 3;
 
-	# Open the file
-	#--------------
+    # Open the file
+    #--------------
 
-	my $logfile = "/var/log/dansguardian/access.log$filenumber";
+    my $logfile = "/var/log/dansguardian/access.log$filenumber";
 
-	if (-e "$logfile.gz" ) {
-		$logfile = "$logfile.gz";
-		tie *FILTER, 'IO::Zlib', $logfile, "rb";
-	} elsif (-e "$logfile" ) {
-		open (FILTER, "< $logfile") or die $!;
-	} else {
-		return;
-	}
+    if (-e "$logfile.gz" ) {
+        $logfile = "$logfile.gz";
+        tie *FILTER, 'IO::Zlib', $logfile, "rb";
+    } elsif (-e "$logfile" ) {
+        open (FILTER, "< $logfile") or die $!;
+    } else {
+        return;
+    }
 
-	print "debug: loading content filter logs between $date_from -> $date_to\n" if $g_debug;
+    print "debug: loading content filter logs between $date_from -> $date_to\n" if $g_debug;
 
-	# If this is the first time, we are efficient at find a good place 
-	# to start scanning the file.
-	#-----------------------------------------------------------------
+    # If this is the first time, we are efficient at find a good place 
+    # to start scanning the file.
+    #-----------------------------------------------------------------
 
-	if ($g_filter_fileseek == 0) {
-		$timestamp = 0;
-		my $safe_position = 0;
-		my $current_position = 0;
-		my $filterline;
-		
-		while ($timestamp < $date_from) {
-			print "debug: searching content filter log at byte $current_position\n" if $g_debug;
-			$safe_position = $current_position;
-			$current_position = $current_position + 1000000;
+    if ($g_filter_fileseek == 0) {
+        $timestamp = 0;
+        my $safe_position = 0;
+        my $current_position = 0;
+        my $filterline;
+        
+        while ($timestamp < $date_from) {
+            print "debug: searching content filter log at byte $current_position\n" if $g_debug;
+            $safe_position = $current_position;
+            $current_position = $current_position + 1000000;
 
-			seek FILTER, $current_position, 0;
-			$filterline = <FILTER>; # First read may incomplete line
-			$filterline = <FILTER>;
-			last if (!$filterline);
+            seek FILTER, $current_position, 0;
+            $filterline = <FILTER>; # First read may incomplete line
+            $filterline = <FILTER>;
+            last if (!$filterline);
 
-			($retval, $timestamp, $date, $username, $ip, $request, $code, $detail, $method, $bytes, $weight) = parse_dansguardian_log_line($filterline);
-		}
+            ($retval, $timestamp, $date, $username, $ip, $request, $code, $detail, $method, $bytes, $weight) = parse_dansguardian_log_line($filterline);
+        }
 
-		$g_filter_fileseek = $safe_position;
-	} else {
-		$g_filter_fileseek = $g_filter_fileseek - 10000;
-		$g_filter_fileseek = 0 if ($g_filter_fileseek  < 0);
-	}
+        $g_filter_fileseek = $safe_position;
+    } else {
+        $g_filter_fileseek = $g_filter_fileseek - 10000;
+        $g_filter_fileseek = 0 if ($g_filter_fileseek  < 0);
+    }
 
-	# Set the location of the file and load data
-	#-------------------------------------------
+    # Set the location of the file and load data
+    #-------------------------------------------
 
-	seek FILTER, $g_filter_fileseek, 0;
+    seek FILTER, $g_filter_fileseek, 0;
 
-	while (my $filterline = <FILTER>) {
-		($retval, $timestamp, $date, $username, $ip, $request, $code, $detail, $method, $bytes, $weight) = parse_dansguardian_log_line($filterline);
+    while (my $filterline = <FILTER>) {
+        ($retval, $timestamp, $date, $username, $ip, $request, $code, $detail, $method, $bytes, $weight) = parse_dansguardian_log_line($filterline);
 
-		next if ($retval == 1);
+        next if ($retval == 1);
 
-		if ($timestamp >= $date_to) {
-			print "debug: finished content filter log processing\n" if $g_debug;
-			$g_filter_fileseek = tell FILTER;
-			close FILTER;
-			return;
-		} elsif (($timestamp >= $date_from) && ($timestamp <= $date_to)) {
-			print "debug: loading content filter request $timestamp|$request\n" if $g_debug;
-			$g_filterset{$timestamp . "|" . $request}->{filter_code} = $code;
-			$g_filterset{$timestamp . "|" . $request}->{filter_detail} = $detail;
-			$g_filterset{$timestamp . "|" . $request}->{filter_weight} = $weight;
-			$g_filterset{$timestamp . "|" . $request}->{filter_ip} = $ip;
-		}
-	}
+        if ($timestamp >= $date_to) {
+            print "debug: finished content filter log processing\n" if $g_debug;
+            $g_filter_fileseek = tell FILTER;
+            close FILTER;
+            return;
+        } elsif (($timestamp >= $date_from) && ($timestamp <= $date_to)) {
+            print "debug: loading content filter request $timestamp|$request\n" if $g_debug;
+            $g_filterset{$timestamp . "|" . $request}->{filter_code} = $code;
+            $g_filterset{$timestamp . "|" . $request}->{filter_detail} = $detail;
+            $g_filterset{$timestamp . "|" . $request}->{filter_weight} = $weight;
+            $g_filterset{$timestamp . "|" . $request}->{filter_ip} = $ip;
+        }
+    }
 
-	if ($logfile =~ /\.gz$/) {
-		untie *FILTER;
-	} else {
-		close FILTER;
-	}
+    if ($logfile =~ /\.gz$/) {
+        untie *FILTER;
+    } else {
+        close FILTER;
+    }
 }
 
 #------------------------------------------------------------------------
@@ -491,109 +491,109 @@ sub load_filter_logs($$$) {
 
 sub load_dataset() {
 
-	print "debug: loading data sets into database\n" if $g_debug;
+    print "debug: loading data sets into database\n" if $g_debug;
 
-	# Merge the two data sets (proxy logs, filter logs)
-	#--------------------------------------------------
+    # Merge the two data sets (proxy logs, filter logs)
+    #--------------------------------------------------
 
-	foreach my $key (keys %g_dataset) {
-		my ($timestamp_proxy, $request_proxy) = split(/\|/, $key);
-		my $timestamp_proxy_rounded = $timestamp_proxy;
-		$timestamp_proxy_rounded =~ s/\..*//;
+    foreach my $key (keys %g_dataset) {
+        my ($timestamp_proxy, $request_proxy) = split(/\|/, $key);
+        my $timestamp_proxy_rounded = $timestamp_proxy;
+        $timestamp_proxy_rounded =~ s/\..*//;
 
-		foreach my $filterkey (keys %g_filterset) {
-			my ($timestamp_filter, $request_filter) = split(/\|/, $filterkey);
-			next if ($request_proxy ne $request_filter);
+        foreach my $filterkey (keys %g_filterset) {
+            my ($timestamp_filter, $request_filter) = split(/\|/, $filterkey);
+            next if ($request_proxy ne $request_filter);
 
-			my $match = 0;
+            my $match = 0;
 
-			if ($timestamp_proxy_rounded == $timestamp_filter) {
-				print "debug: match fuzz 0 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
-				$match = 1;
-			} elsif ($timestamp_proxy_rounded == ($timestamp_filter - 1)) {
-				print "debug: match fuzz -1 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
-				$match = 1;
-			} elsif ($timestamp_proxy_rounded == ($timestamp_filter - 2)) {
-				print "debug: match fuzz -2 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
-				$match = 1;
-			} elsif ($timestamp_proxy_rounded == ($timestamp_filter - 3)) {
-				print "debug: match fuzz -3 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
-				$match = 1;
-			} elsif ($timestamp_proxy_rounded == ($timestamp_filter + 1)) {
-				print "debug: match fuzz +1 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
-				$match = 1;
-			} elsif ($timestamp_proxy_rounded == ($timestamp_filter + 2)) {
-				print "debug: match fuzz +2 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
-				$match = 1;
-			}
+            if ($timestamp_proxy_rounded == $timestamp_filter) {
+                print "debug: match fuzz 0 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
+                $match = 1;
+            } elsif ($timestamp_proxy_rounded == ($timestamp_filter - 1)) {
+                print "debug: match fuzz -1 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
+                $match = 1;
+            } elsif ($timestamp_proxy_rounded == ($timestamp_filter - 2)) {
+                print "debug: match fuzz -2 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
+                $match = 1;
+            } elsif ($timestamp_proxy_rounded == ($timestamp_filter - 3)) {
+                print "debug: match fuzz -3 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
+                $match = 1;
+            } elsif ($timestamp_proxy_rounded == ($timestamp_filter + 1)) {
+                print "debug: match fuzz +1 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
+                $match = 1;
+            } elsif ($timestamp_proxy_rounded == ($timestamp_filter + 2)) {
+                print "debug: match fuzz +2 $request_proxy @ " . $timestamp_proxy_rounded . "\n" if $g_debug;
+                $match = 1;
+            }
 
-			if ($match == 1) {
-				# Override IP in case X-Forward is disabled for some reason
-				$g_dataset{$key}->{ip} = $g_filterset{$filterkey}->{filter_ip};
-				$g_dataset{$key}->{filter_code} = $g_filterset{$filterkey}->{filter_code};
-				$g_dataset{$key}->{filter_detail} = $g_filterset{$filterkey}->{filter_detail};
-				$g_dataset{$key}->{filter_weight} = $g_filterset{$filterkey}->{filter_weight};
-				$g_dataset{$key}->{filter_data} = 1;
-				delete $g_filterset{$filterkey};
-				last;
-			}
-		}
-	}
+            if ($match == 1) {
+                # Override IP in case X-Forward is disabled for some reason
+                $g_dataset{$key}->{ip} = $g_filterset{$filterkey}->{filter_ip};
+                $g_dataset{$key}->{filter_code} = $g_filterset{$filterkey}->{filter_code};
+                $g_dataset{$key}->{filter_detail} = $g_filterset{$filterkey}->{filter_detail};
+                $g_dataset{$key}->{filter_weight} = $g_filterset{$filterkey}->{filter_weight};
+                $g_dataset{$key}->{filter_data} = 1;
+                delete $g_filterset{$filterkey};
+                last;
+            }
+        }
+    }
 
-	# Dump merged data into database
-	#-------------------------------
+    # Dump merged data into database
+    #-------------------------------
 
-	foreach my $key (keys %g_dataset) {
-		if (exists($g_dataset{$key}->{filter_data}) && ($g_dataset{$key}->{filter_data} eq "1")) {
-			print "debug: filtercode for $key: " . $g_dataset{$key}->{filter_code} . "\n" if $g_debug;
-		} else {
-			print "debug: filtercode missing for $key\n" if $g_debug;
-			$g_dataset{$key}->{filter_code} = 0;
-			$g_dataset{$key}->{filter_detail} = "";
-			$g_dataset{$key}->{filter_weight} = 0;
-		}
-	
-		# Insert into database
-		my $query = qq|
-			INSERT INTO proxy (timestamp, duration, ip, cache_code, status, bytes, method, request, username, content_type, domain, md5, filter_code, filter_detail)
-			VALUES ( FROM_UNIXTIME(?), ?, INET_ATON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		|;
-	
-		my $sth = $g_dbh->prepare($query);
-	
-		eval {
-			$sth->execute(
-				$g_dataset{$key}->{timestamp},
-				$g_dataset{$key}->{duration},
-				$g_dataset{$key}->{ip},
-				$g_dataset{$key}->{cache_code},
-				$g_dataset{$key}->{status},
-				$g_dataset{$key}->{bytes},
-				$g_dataset{$key}->{method},
-				$g_dataset{$key}->{request},
-				$g_dataset{$key}->{username},
-				$g_dataset{$key}->{content_type},
-				$g_dataset{$key}->{domain},
-				$g_dataset{$key}->{md5},
-				$g_dataset{$key}->{filter_code},
-				$g_dataset{$key}->{filter_detail}
-			);
-		};
+    foreach my $key (keys %g_dataset) {
+        if (exists($g_dataset{$key}->{filter_data}) && ($g_dataset{$key}->{filter_data} eq "1")) {
+            print "debug: filtercode for $key: " . $g_dataset{$key}->{filter_code} . "\n" if $g_debug;
+        } else {
+            print "debug: filtercode missing for $key\n" if $g_debug;
+            $g_dataset{$key}->{filter_code} = 0;
+            $g_dataset{$key}->{filter_detail} = "";
+            $g_dataset{$key}->{filter_weight} = 0;
+        }
+    
+        # Insert into database
+        my $query = qq|
+            INSERT INTO proxy (timestamp, duration, ip, cache_code, status, bytes, method, request, username, content_type, domain, md5, filter_code, filter_detail)
+            VALUES ( FROM_UNIXTIME(?), ?, INET_ATON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        |;
+    
+        my $sth = $g_dbh->prepare($query);
+    
+        eval {
+            $sth->execute(
+                $g_dataset{$key}->{timestamp},
+                $g_dataset{$key}->{duration},
+                $g_dataset{$key}->{ip},
+                $g_dataset{$key}->{cache_code},
+                $g_dataset{$key}->{status},
+                $g_dataset{$key}->{bytes},
+                $g_dataset{$key}->{method},
+                $g_dataset{$key}->{request},
+                $g_dataset{$key}->{username},
+                $g_dataset{$key}->{content_type},
+                $g_dataset{$key}->{domain},
+                $g_dataset{$key}->{md5},
+                $g_dataset{$key}->{filter_code},
+                $g_dataset{$key}->{filter_detail}
+            );
+        };
 
-		if ($@) {
-			if ($DBI::err eq 1062) {
-				# print "duplicate line: $md5\n";
-			} elsif ($DBI::err) {
-				die "Database error " . $DBI::errstr . "\n";
-			}
-		} else {
-			$g_dbcount++;
-		}
-	}
+        if ($@) {
+            if ($DBI::err eq 1062) {
+                # print "duplicate line: $md5\n";
+            } elsif ($DBI::err) {
+                die "Database error " . $DBI::errstr . "\n";
+            }
+        } else {
+            $g_dbcount++;
+        }
+    }
 
-	undef(%g_dataset);
-	undef(%g_filterset);
-	eval { $g_dbh->commit(); };
+    undef(%g_dataset);
+    undef(%g_filterset);
+    eval { $g_dbh->commit(); };
 }
 
 #------------------------------------------------------------------------
@@ -624,49 +624,49 @@ sub load_dataset() {
 #------------------------------------------------------------------------
 
 sub parse_squid_log_line {
-	my $line = shift or return;
-	my $retval;
-	my $timestamp;
-	my $duration;
-	my $ip;
-	my $cache_code;
-	my $status;
-	my $bytes;
-	my $method;
-	my $request;
-	my $username;
-	my $hierarchy;
-	my $content_type;
-	my $domain;
-	my $md5;
+    my $line = shift or return;
+    my $retval;
+    my $timestamp;
+    my $duration;
+    my $ip;
+    my $cache_code;
+    my $status;
+    my $bytes;
+    my $method;
+    my $request;
+    my $username;
+    my $hierarchy;
+    my $content_type;
+    my $domain;
+    my $md5;
 
-	if ($line =~ /^(\d{10,}\.\d{3,3})/) {
+    if ($line =~ /^(\d{10,}\.\d{3,3})/) {
 
-		my $full_code;
-		($timestamp, $duration, $ip, $full_code, $bytes, $method, $request, $username, $hierarchy, $content_type) = split(/\s+/, $line);
-		($cache_code, $status) = split(/\//, $full_code);
+        my $full_code;
+        ($timestamp, $duration, $ip, $full_code, $bytes, $method, $request, $username, $hierarchy, $content_type) = split(/\s+/, $line);
+        ($cache_code, $status) = split(/\//, $full_code);
 
-		# If we're using NTLM authentication, we have username in DOMAIN\User format,
-		# so split domain and user (authuser) at \
+        # If we're using NTLM authentication, we have username in DOMAIN\User format,
+        # so split domain and user (authuser) at \
 
-		if ($username =~ /\\/) {
-			my ($domain, $user) = split(/\\/,$username);
-			$username = $user;
-		}
+        if ($username =~ /\\/) {
+            my ($domain, $user) = split(/\\/,$username);
+            $username = $user;
+        }
 
-		$request =~ s/\/$//g;
-		$domain = $request;
-		$domain =~ s/.*:\/\///;
-		$domain =~ s/\/.*//;
-		$md5 = md5_hex($line);
+        $request =~ s/\/$//g;
+        $domain = $request;
+        $domain =~ s/.*:\/\///;
+        $domain =~ s/\/.*//;
+        $md5 = md5_hex($line);
 
-		$bytes = 0 unless ($bytes =~ /\d+/);
-		$retval = 0;
-	} else {
-		$retval = 1;
-	}
+        $bytes = 0 unless ($bytes =~ /\d+/);
+        $retval = 0;
+    } else {
+        $retval = 1;
+    }
 
-	return ($retval, $timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5);
+    return ($retval, $timestamp, $duration, $ip, $cache_code, $status, $bytes, $method, $request, $username, $hierarchy, $content_type, $domain, $md5);
 }
 
 #------------------------------------------------------------------------
@@ -710,73 +710,73 @@ sub parse_squid_log_line {
 #------------------------------------------------------------------------
 
 sub parse_dansguardian_log_line {
-	my $line = shift or return;
-	my $retval;
-	my $timestamp;
-	my $username;
-	my $ip;
-	my $request;
-	my $code;
-	my $detail;
-	my $code_and_detail;
-	my $method;
-	my $bytes;
-	my $weight;
-	my $date;
-	my $time;
-	my $toeol;
+    my $line = shift or return;
+    my $retval;
+    my $timestamp;
+    my $username;
+    my $ip;
+    my $request;
+    my $code;
+    my $detail;
+    my $code_and_detail;
+    my $method;
+    my $bytes;
+    my $weight;
+    my $date;
+    my $time;
+    my $toeol;
 
-	if ($line =~ /^(\d{4,}\.\d{1,2}\.\d{1,2})/) {
-		$line =~ s/\*SCANNED\* //;  # Gets in the way
+    if ($line =~ /^(\d{4,}\.\d{1,2}\.\d{1,2})/) {
+        $line =~ s/\*SCANNED\* //;  # Gets in the way
 
-		($date, $time, $username, $ip, $request, $toeol) = split(/ /, $line, 6);
+        ($date, $time, $username, $ip, $request, $toeol) = split(/ /, $line, 6);
 
-		$date = "$date $time";
-		$timestamp = parsedate($date);
+        $date = "$date $time";
+        $timestamp = parsedate($date);
 
-		# Empty code information
-		if ($toeol =~ /^ /) {
-			$code = 0;
-			$detail = "";
-			$toeol =~ s/^ //;
+        # Empty code information
+        if ($toeol =~ /^ /) {
+            $code = 0;
+            $detail = "";
+            $toeol =~ s/^ //;
 
-		# Populated code field
-		} elsif ($toeol =~ / (GET|CONNECT) /) {
-			$code = 0;
-			$detail = "unknown";
+        # Populated code field
+        } elsif ($toeol =~ / (GET|CONNECT) /) {
+            $code = 0;
+            $detail = "unknown";
 
-			$toeol =~ /(\*.*\*) (.*) (GET|CONNECT) .*/;
-			$code_and_detail = $2;
+            $toeol =~ /(\*.*\*) (.*) (GET|CONNECT) .*/;
+            $code_and_detail = $2;
 
-			if ($code_and_detail) {
-				foreach my $code_lookup (keys %g_filter_messages) {
-					my $regex = $code_lookup;
-					$regex =~ s/\[/\\[/g;
-					if ($code_and_detail =~ /$regex/) {
-						$code = $g_filter_messages{$code_lookup};
-						$detail = $code_and_detail;
-						$detail =~ s/$regex//;
-						$detail =~ s/^\s*//;
-					}
-				}
-			}
+            if ($code_and_detail) {
+                foreach my $code_lookup (keys %g_filter_messages) {
+                    my $regex = $code_lookup;
+                    $regex =~ s/\[/\\[/g;
+                    if ($code_and_detail =~ /$regex/) {
+                        $code = $g_filter_messages{$code_lookup};
+                        $detail = $code_and_detail;
+                        $detail =~ s/$regex//;
+                        $detail =~ s/^\s*//;
+                    }
+                }
+            }
 
-			$toeol =~ s/.* GET /GET /;
-			$toeol =~ s/.* CONNECT /CONNECT /;
-		}
+            $toeol =~ s/.* GET /GET /;
+            $toeol =~ s/.* CONNECT /CONNECT /;
+        }
 
-		($method, $bytes, $weight, $toeol) = split(/ /, $toeol, 4);
+        ($method, $bytes, $weight, $toeol) = split(/ /, $toeol, 4);
 
-		$bytes = 0 unless ($bytes =~ /\d+/);
-		$request =~ s/\/$//g;
-		$request =~ s/\?.*/\?/;
+        $bytes = 0 unless ($bytes =~ /\d+/);
+        $request =~ s/\/$//g;
+        $request =~ s/\?.*/\?/;
 
-		$retval = 0;
-	} else {
-		$retval = 1;
-	}
+        $retval = 0;
+    } else {
+        $retval = 1;
+    }
 
-	return ($retval, $timestamp, $date, $username, $ip, $request, $code, $detail, $method, $bytes, $weight);
+    return ($retval, $timestamp, $date, $username, $ip, $request, $code, $detail, $method, $bytes, $weight);
 }
 
 #------------------------------------------------------------------------
@@ -784,52 +784,52 @@ sub parse_dansguardian_log_line {
 #------------------------------------------------------------------------
 
 sub db_connect() {
-	my $dbuser = "reports";
-	my $dbname = "reports";
-	my $dbport = "3308";
-	my $dbhost = "127.0.0.1";
-	my $dbpass;
+    my $dbuser = "reports";
+    my $dbname = "reports";
+    my $dbport = "3308";
+    my $dbhost = "127.0.0.1";
+    my $dbpass;
 
-	if (-e "/var/clearos/system_database/reports") {
-		open (DBINFO, "/var/clearos/system_database/reports") or die $!;
-		while(<DBINFO>) {
-			if (/^password\s*=\s*/) {
-				s/^password\s*=\s*//;
-				chomp();
-				$dbpass = $_;
-			}
-		}
-	}
+    if (-e "/var/clearos/system_database/reports") {
+        open (DBINFO, "/var/clearos/system_database/reports") or die $!;
+        while(<DBINFO>) {
+            if (/^password\s*=\s*/) {
+                s/^password\s*=\s*//;
+                chomp();
+                $dbpass = $_;
+            }
+        }
+    }
 
     system("/usr/sbin/initialize-report-tables proxy /usr/clearos/apps/proxy_report/deploy/db_tables.sql");
 
-	my $retry = 0;
+    my $retry = 0;
 
-	while ($retry < 3) {
-		eval {
-			$g_dbh = DBI->connect(
-				"DBI:mysql:$dbname:$dbhost:$dbport",
-				$dbuser,
-				$dbpass,
-				{ RaiseError => 1, PrintError => 0, AutoCommit => 0 }
-			);
-		};
+    while ($retry < 3) {
+        eval {
+            $g_dbh = DBI->connect(
+                "DBI:mysql:$dbname:$dbhost:$dbport",
+                $dbuser,
+                $dbpass,
+                { RaiseError => 1, PrintError => 0, AutoCommit => 0 }
+            );
+        };
 
-		if ($@) {
-			if ($DBI::err eq 2003) {
-				system("/sbin/service system-mysqld start >/dev/null 2>&1");
-			} else {
-				system("/usr/sbin/initialize-report-tables proxy /usr/clearos/apps/proxy_report/deploy/db_tables.sql");
-			}
+        if ($@) {
+            if ($DBI::err eq 2003) {
+                system("/sbin/service system-mysqld start >/dev/null 2>&1");
+            } else {
+                system("/usr/sbin/initialize-report-tables proxy /usr/clearos/apps/proxy_report/deploy/db_tables.sql");
+            }
 
-			$retry++;
-			sleep(3);
-		} else {
-			return;
-		}
-	}
+            $retry++;
+            sleep(3);
+        } else {
+            return;
+        }
+    }
 
-	die "Failed to connect to database";
+    die "Failed to connect to database";
 }
 
 #------------------------------------------------------------------------
@@ -837,10 +837,10 @@ sub db_connect() {
 #------------------------------------------------------------------------
 
 sub db_disconnect() {
-	if ($g_dbh) {
-		$g_dbh->commit();
-		$g_dbh->disconnect;
-	}
+    if ($g_dbh) {
+        $g_dbh->commit();
+        $g_dbh->disconnect;
+    }
 }
 
 #------------------------------------------------------------------------
@@ -848,19 +848,19 @@ sub db_disconnect() {
 #------------------------------------------------------------------------
 
 sub is_ipv4 {
-	my $self = shift if ref($_[0]);
-	my $value = shift;
+    my $self = shift if ref($_[0]);
+    my $value = shift;
 
-	return unless defined($value);
+    return unless defined($value);
 
-	my(@octets) = $value =~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-	return unless (@octets == 4);
+    my(@octets) = $value =~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    return unless (@octets == 4);
 
-	foreach (@octets) {
-		return unless ($_ >= 0 && $_ <= 255);
-	}
+    foreach (@octets) {
+        return unless ($_ >= 0 && $_ <= 255);
+    }
 
-	return join('.', @octets);
+    return join('.', @octets);
 }
 
 #------------------------------------------------------------------------
@@ -868,18 +868,18 @@ sub is_ipv4 {
 #------------------------------------------------------------------------
 
 sub usage() {
-	print STDERR qq|
+    print STDERR qq|
 This program loads squid and dansguardian files into a mysql database.
 
-	usage: $0 [-hvfa]
+    usage: $0 [-hvfa]
 
-	-h		: this (help) message
-	-v		: verbose output
-	-f		: force insert
-	-a		: all logs
+    -h        : this (help) message
+    -v        : verbose output
+    -f        : force insert
+    -a        : all logs
 
-	example: $0 -v -a
+    example: $0 -v -a
 
 |;
-	exit;
+    exit;
 }
