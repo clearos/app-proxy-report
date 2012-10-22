@@ -119,7 +119,7 @@ process_proxy_log();
 db_disconnect();
 
 # TODO: quick hack for beta
-`/bin/rm /var/clearos/reports_database/cache/proxy/*`;
+`/bin/rm /var/clearos/reports_database/cache/proxy/* -f`;
 
 exit 0;
 
@@ -801,7 +801,7 @@ sub db_connect() {
 		}
 	}
 
-	system("/usr/clearos/apps/proxy_report/deploy/initialize-tables");
+    system("/usr/sbin/initialize-report-tables proxy /usr/clearos/apps/proxy_report/deploy/db_tables.sql");
 
 	my $retry = 0;
 
