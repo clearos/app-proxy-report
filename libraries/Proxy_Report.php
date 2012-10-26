@@ -96,6 +96,8 @@ class Proxy_Report extends Database_Report
     // C O N S T A N T S
     ///////////////////////////////////////////////////////////////////////////////
 
+    const DEFAULT_DB_CACHE_TIME = 1200;
+
     ///////////////////////////////////////////////////////////////////////////////
     // V A R I A B L E S
     ///////////////////////////////////////////////////////////////////////////////
@@ -201,7 +203,7 @@ class Proxy_Report extends Database_Report
      * @throws Engine_Exception
      */
 
-    public function get_domain_data($date_range = 'today', $records = NULL)
+    public function get_domain_data($range = 'today', $records = NULL)
     {
         clearos_profile(__METHOD__, __LINE__);
 
@@ -214,7 +216,11 @@ class Proxy_Report extends Database_Report
         $sql['group_by'] = 'domain';
         $sql['order_by'] = 'hits DESC';
 
-        $entries = $this->_run_query('proxy', $sql, $date_range, $records);
+        $options['range'] = $range;
+        $options['records'] = $records;
+        $options['cache_time'] = self::DEFAULT_DB_CACHE_TIME;
+
+        $entries = $this->_run_query('proxy', $sql, $options);
 
         // Format report data
         //-------------------
@@ -278,7 +284,7 @@ $domain = 'www.facebook.com';
      * @throws Engine_Exception
      */
 
-    public function get_ip_data($date_range = 'today', $records = NULL)
+    public function get_ip_data($range = 'today', $records = NULL)
     {
         clearos_profile(__METHOD__, __LINE__);
 
@@ -291,7 +297,10 @@ $domain = 'www.facebook.com';
         $sql['group_by'] = 'ip';
         $sql['order_by'] = 'hits DESC';
 
-        $entries = $this->_run_query('proxy', $sql, $date_range, $records);
+        $options['range'] = $range;
+        $options['records'] = $records;
+
+        $entries = $this->_run_query('proxy', $sql, $options);
 
         // Format report data
         //-------------------
