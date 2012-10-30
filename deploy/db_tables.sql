@@ -33,8 +33,9 @@ CREATE TABLE `proxy_domains` (
     `id` bigint(20) unsigned NOT NULL auto_increment,
     `ip` varbinary(16) default NULL,
     `hostname` varchar(255) default NULL,
-    `creationdate` timestamp NOT NULL default CURRENT_TIMESTAMP,
+    `timestamp` timestamp NOT NULL default CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `ip` (`ip`),
+    INDEX(timestamp),
     KEY `hostname` (`hostname`)
 ) ENGINE=innodb DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;

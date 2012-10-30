@@ -231,8 +231,16 @@ class Proxy_Report extends Database_Report
         $report_data['header'] = $info['headers'];
         $report_data['type'] = $info['types'];
 
-        foreach ($entries as $entry) 
+        foreach ($entries as $entry)
             $report_data['data'][] = array($entry['domain'], (int) $entry['hits'], (int) $entry['size']);
+
+        // Add format information
+        //-----------------------
+
+        $report_data['format'] = array(
+            'series_units' => lang('proxy_report_hits'),
+            'baseline_data_points' => 10,
+        );
 
         return $report_data;
     }
@@ -313,6 +321,13 @@ $domain = 'www.facebook.com';
 
         foreach ($entries as $entry)
             $report_data['data'][] = array($entry['ip'], (int) $entry['hits'], (int) $entry['size']);
+
+        // Add format information
+        //-----------------------
+
+        $report_data['format'] = array(
+            'baseline_data_points' => 10,
+        );
 
         return $report_data;
     }
