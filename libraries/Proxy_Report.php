@@ -198,12 +198,14 @@ class Proxy_Report extends Database_Report
 
     /**
      * Returns domain summary data.
+     * 
+     * @param string $range range information
      *
      * @return array domain summary data
      * @throws Engine_Exception
      */
 
-    public function get_domain_data($range = 'today', $records = NULL)
+    public function get_domain_data($range = 'today')
     {
         clearos_profile(__METHOD__, __LINE__);
 
@@ -217,7 +219,6 @@ class Proxy_Report extends Database_Report
         $sql['order_by'] = 'hits DESC';
 
         $options['range'] = $range;
-        $options['records'] = $records;
         $options['cache_time'] = self::DEFAULT_DB_CACHE_TIME;
 
         $entries = $this->_run_query('proxy', $sql, $options);
@@ -248,7 +249,11 @@ class Proxy_Report extends Database_Report
     /**
      * Returns domain detail data.
      *
-     * @return array domain summary data
+     * @param string $domain   domain name
+     * @param string $range    range information
+     * @param string $timespan timespan information
+     *
+     * @return array domain detail data
      * @throws Engine_Exception
      */
 
@@ -256,10 +261,10 @@ class Proxy_Report extends Database_Report
     {
         clearos_profile(__METHOD__, __LINE__);
 
-// FIXME
-$timespan = 'daily';
-$domain = 'www.google.ca';
-$domain = 'www.facebook.com';
+        // FIXME
+        $timespan = 'daily';
+        $domain = 'www.google.ca';
+        $domain = 'www.facebook.com';
 
         // Get report data
         //----------------
@@ -288,11 +293,13 @@ $domain = 'www.facebook.com';
     /**
      * Returns IP summary data.
      *
-     * @return array ip summary data
+     * @param string $range range information
+     *
+     * @return array IP summary data
      * @throws Engine_Exception
      */
 
-    public function get_ip_data($range = 'today', $records = NULL)
+    public function get_ip_data($range = 'today')
     {
         clearos_profile(__METHOD__, __LINE__);
 
@@ -306,7 +313,6 @@ $domain = 'www.facebook.com';
         $sql['order_by'] = 'hits DESC';
 
         $options['range'] = $range;
-        $options['records'] = $records;
 
         $entries = $this->_run_query('proxy', $sql, $options);
 
@@ -344,27 +350,14 @@ $domain = 'www.facebook.com';
     
     protected function _get_definition()
     {
-        // Overview
-        //---------
-
-        $reports['overview'] = array(
-            'title' => lang('base_overview'),
-            'url' => 'proxy_report',
-            'app' => 'proxy_report',
-            'report' => 'overview',
-        );
-
         // IP Summary
         //-----------
 
         $reports['ips'] = array(
-            'title' => lang('proxy_report_ip_summary'),
-            'method' => 'get_ip_data',
             'app' => 'proxy_report',
-            'url' => 'proxy_report/ips/index/full',
-            'report' => 'ips',
+            'title' => lang('proxy_report_ip_summary'),
+            'api_data' => 'get_ip_data',
             'chart_type' => 'pie',
-            'library' => 'Proxy_Report',
             'headers' => array(
                 lang('network_ip'),
                 lang('proxy_report_hits'),
@@ -381,13 +374,10 @@ $domain = 'www.facebook.com';
         //----------------
 
         $reports['domains'] = array(
-            'title' => lang('proxy_report_domain_summary'),
-            'method' => 'get_domain_data',
             'app' => 'proxy_report',
-            'url' => 'proxy_report/domains/index/full',
-            'report' => 'domains',
+            'title' => lang('proxy_report_domain_summary'),
+            'api_data' => 'get_domain_data',
             'chart_type' => 'bar',
-            'library' => 'Proxy_Report',
             'headers' => array(
                 lang('proxy_report_domain'),
                 lang('proxy_report_hits'),

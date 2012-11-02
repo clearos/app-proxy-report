@@ -59,6 +59,6 @@ class Domains extends Report_Controller
 
     function __construct()
     {
-        parent::__construct('proxy_report', 'Proxy_Report', 'domains');
+        parent::__construct('proxy_report', 'Proxy_Report');
     }
 }

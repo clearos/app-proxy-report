@@ -59,6 +59,6 @@ class IPs extends Report_Controller
 
     function __construct()
     {
-        parent::__construct('proxy_report', 'Proxy_Report', 'ips');
+        parent::__construct('proxy_report', 'Proxy_Report');
     }
 }

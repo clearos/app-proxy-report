@@ -59,11 +59,6 @@ class Proxy_Report extends Report_Controller
 
     function __construct()
     {
-        $reports = array(
-            'proxy_report/domains',
-            'proxy_report/ips'
-        );
-
-        parent::__construct('proxy_report', 'Proxy_Report', 'overview', $reports);
+        parent::__construct('proxy_report', 'Proxy_Report');
     }
 }
