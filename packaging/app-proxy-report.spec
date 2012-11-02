@@ -1,7 +1,7 @@
 
 Name: app-proxy-report
 Epoch: 1
-Version: 1.4.1
+Version: 1.4.2
 Release: 1%{dist}
 Summary: Filter and Proxy Report
 License: GPLv3
@@ -19,8 +19,8 @@ Summary: Filter and Proxy Report - Core
 License: LGPLv3
 Group: ClearOS/Libraries
 Requires: app-base-core
-Requires: app-reports-core >= 1:1.4.1
-Requires: app-reports-database-core >= 1:1.4.1
+Requires: app-reports-core >= 1:1.4.2
+Requires: app-reports-database-core >= 1:1.4.2
 Requires: app-tasks-core
 
 %description core
