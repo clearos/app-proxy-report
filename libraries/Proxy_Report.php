@@ -46,6 +46,7 @@ require_once $bootstrap . '/bootstrap.php';
 // T R A N S L A T I O N S
 ///////////////////////////////////////////////////////////////////////////////
 
+clearos_load_language('base');
 clearos_load_language('proxy_report');
 clearos_load_language('network');
 
@@ -197,6 +198,60 @@ class Proxy_Report extends Database_Report
     }
 
     /**
+     * Returns date data.
+     *
+     * @param string $range range information
+     *
+     * @return array IP summary data
+     * @throws Engine_Exception
+     */
+
+    public function get_date_data($range = 'today')
+    {
+        clearos_profile(__METHOD__, __LINE__);
+
+        // Get report data
+        //----------------
+
+        if (($range === 'today') || ($range === 'yesterday')) {
+            $timespan = 'DATE_FORMAT(timestamp, \'%Y-%m-%d %H:00:00\') as timestamp ';
+            $group_by = 'DATE(timestamp), HOUR(timestamp)';
+        } else {
+            $timespan = 'DATE_FORMAT(timestamp, \'%Y-%m-%d\') as timestamp ';
+            $group_by = 'DATE(timestamp)';
+        }
+
+        $sql['select'] = "COUNT(request) AS hits, COUNT(DISTINCT ip) as ips, SUM(bytes)/1024/1024 AS size, $timespan ";
+        $sql['from'] = 'proxy';
+        $sql['where'] = 'request IS NOT NULL';
+        $sql['group_by'] = $group_by;
+        $sql['order_by'] = 'timestamp DESC';
+
+        $options['range'] = $range;
+
+        $entries = $this->_run_query('proxy', $sql, $options);
+
+        // Format report data
+        //-------------------
+
+        $info = $this->get_report_info('date');
+
+        $report_data = array();
+        $report_data['header'] = $info['headers'];
+        $report_data['type'] = $info['types'];
+
+        foreach ($entries as $entry) {
+            $report_data['data'][] = array(
+                $entry['timestamp'],
+                (int) $entry['size'],
+                (int) $entry['hits'],
+                (int) $entry['ips']
+            );
+        }
+
+        return $report_data;
+    }
+    /**
      * Returns domain summary data.
      * 
      * @param string $range range information
@@ -209,17 +264,40 @@ class Proxy_Report extends Database_Report
     {
         clearos_profile(__METHOD__, __LINE__);
 
-        // Get report data
-        //----------------
+        // Create temporary tables
+        //------------------------
 
-        $sql['select'] = 'domain, COUNT(request) AS hits, SUM(bytes)/1024/1024 AS size';
+        $create_options['range'] = $range;
+
+        $sql['table'] = 'hits';
+        $sql['select'] = '`domain`, COUNT(`request`) AS `hits` , SUM(`bytes`)/1024/1024 AS `size`';
         $sql['from'] = 'proxy';
         $sql['where'] = 'domain IS NOT NULL';
         $sql['group_by'] = 'domain';
         $sql['order_by'] = 'hits DESC';
 
-        $options['range'] = $range;
-        $options['cache_time'] = self::DEFAULT_DB_CACHE_TIME;
+        $this->_create_temporary_table('proxy', $sql, $create_options);
+
+        $sql = array();
+        $sql['table'] = 'cache_hits';
+        $sql['select'] = ' `domain`, COUNT(`request`) AS `hits` , SUM(`bytes`)/1024/1024 AS `size`';
+        $sql['from'] = 'proxy';
+        $sql['where'] = 'cache_code LIKE \'%HIT%\'';
+        $sql['group_by'] = 'domain';
+        $sql['order_by'] = 'hits DESC';
+
+        $this->_create_temporary_table('proxy', $sql, $create_options);
+
+        // Get report data
+        //----------------
+
+        $sql = array();
+        $sql['select'] = 
+            'hits.domain, hits.hits, hits.size, ' .
+            'cache_hits.hits AS cache_hits, ' .
+            '((cache_hits.hits*100)/hits.hits) AS hits_percent';
+        $sql['from'] = 'hits';
+        $sql['left_join'] = 'cache_hits ON hits.domain=cache_hits.domain';
 
         $entries = $this->_run_query('proxy', $sql, $options);
 
@@ -232,8 +310,15 @@ class Proxy_Report extends Database_Report
         $report_data['header'] = $info['headers'];
         $report_data['type'] = $info['types'];
 
-        foreach ($entries as $entry)
-            $report_data['data'][] = array($entry['domain'], (int) $entry['hits'], (int) $entry['size']);
+        foreach ($entries as $entry) {
+            $report_data['data'][] = array(
+                $entry['domain'],
+                (int) $entry['size'],
+                (int) $entry['hits'],
+                (int) $entry['cache_hits'],
+                (int) $entry['hits_percent']
+            );
+        }
 
         // Add format information
         //-----------------------
@@ -285,7 +370,7 @@ class Proxy_Report extends Database_Report
         $report_data['type'] = array('date', 'int', 'int');
 
         foreach ($entries as $entry) 
-            $report_data['data'][] = array($entry['timespan'], (int) $entry['hits'], (int) $entry['size']);
+            $report_data['data'][] = array($entry['timespan'], (int) $entry['size'], (int) $entry['hits']);
 
         return $report_data;
     }
@@ -324,9 +409,65 @@ class Proxy_Report extends Database_Report
         $report_data = array();
         $report_data['header'] = $info['headers'];
         $report_data['type'] = $info['types'];
+        $report_data['detail'] = $info['detail'];
+
+        foreach ($entries as $entry) {
+            $report_data['data'][] = array(
+                $entry['ip'],
+                (int) $entry['size'],
+                (int) $entry['hits']
+            );
+        }
+
+        // Add format information
+        //-----------------------
+
+        $report_data['format'] = array(
+            'baseline_data_points' => 10,
+        );
+
+        return $report_data;
+    }
+
+    /**
+     * Returns IP detail data.
+     *
+     * @param string $range range information
+     *
+     * @return array IP summary data
+     * @throws Engine_Exception
+     */
+
+    public function get_ip_details_data($ip, $range = 'today')
+    {
+        clearos_profile(__METHOD__, __LINE__);
+
+        // Get report data
+        //----------------
+
+        $ip = ip2long($ip); // TODO: not IPv6 friendly
+
+        $sql['select'] = 'domain, COUNT(request) AS hits, SUM(bytes)/1024/1024 AS size';
+        $sql['from'] = 'proxy';
+        $sql['where'] = 'ip = \'' . $ip . '\'';
+        $sql['group_by'] = 'domain';
+        $sql['order_by'] = 'hits DESC';
+
+        $options['range'] = $range;
+
+        $entries = $this->_run_query('proxy', $sql, $options);
+
+        // Format report data
+        //-------------------
+
+        $info = $this->get_report_info('ip_details');
+
+        $report_data = array();
+        $report_data['header'] = $info['headers'];
+        $report_data['type'] = $info['types'];
 
         foreach ($entries as $entry)
-            $report_data['data'][] = array($entry['ip'], (int) $entry['hits'], (int) $entry['size']);
+            $report_data['data'][] = array($entry['domain'], (int) $entry['size'], (int) $entry['hits']);
 
         // Add format information
         //-----------------------
@@ -350,6 +491,28 @@ class Proxy_Report extends Database_Report
     
     protected function _get_definition()
     {
+        // Date
+        //-----
+
+        $reports['date'] = array(
+            'app' => 'proxy_report',
+            'title' => lang('proxy_report_date_summary'),
+            'api_data' => 'get_date_data',
+            'chart_type' => 'timeline',
+            'headers' => array(
+                lang('base_date'),
+                lang('proxy_report_size'),
+                lang('proxy_report_hits'),
+                lang('proxy_report_ips')
+            ),
+            'types' => array(
+                'timestamp',
+                'int',
+                'int',
+                'int'
+            ),
+        );
+
         // IP Summary
         //-----------
 
@@ -360,11 +523,36 @@ class Proxy_Report extends Database_Report
             'chart_type' => 'pie',
             'headers' => array(
                 lang('network_ip'),
-                lang('proxy_report_hits'),
-                lang('proxy_report_size')
+                lang('proxy_report_size'),
+                lang('proxy_report_hits')
             ),
             'types' => array(
                 'ip',
+                'int',
+                'int'
+            ),
+            'detail' => array(
+                '/app/proxy_report/ip_details/index/',
+                NULL,
+                NULL 
+            ),
+        );
+
+        // IP Details
+        //-----------
+
+        $reports['ip_details'] = array(
+            'app' => 'proxy_report',
+            'title' => lang('proxy_report_ip_details'),
+            'api_data' => 'get_ip_details_data',
+            'chart_type' => 'bar',
+            'headers' => array(
+                lang('network_ip'),
+                lang('proxy_report_size'),
+                lang('proxy_report_hits')
+            ),
+            'types' => array(
+                'string',
                 'int',
                 'int'
             ),
@@ -380,11 +568,15 @@ class Proxy_Report extends Database_Report
             'chart_type' => 'bar',
             'headers' => array(
                 lang('proxy_report_domain'),
+                lang('proxy_report_size'),
                 lang('proxy_report_hits'),
-                lang('proxy_report_size')
+                lang('proxy_report_cache_hits'),
+                lang('proxy_report_cache_percentage'),
             ),
             'types' => array(
                 'string',
+                'int',
+                'int',
                 'int',
                 'int'
             ),

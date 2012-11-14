@@ -10,3 +10,8 @@ $lang['proxy_report_domain_summary'] = 'Domain Summary';
 $lang['proxy_report_hits'] = 'Hits';
 $lang['proxy_report_size'] = 'Size';
 $lang['proxy_report_ip_summary'] = 'IP Summary';
+$lang['proxy_report_ips'] = 'IPs';
+$lang['proxy_report_cache_hits'] = 'Cache Hits';
+$lang['proxy_report_cache_percentage'] = 'Cache %';
+$lang['proxy_report_date_summary'] = 'Date Summary';
+

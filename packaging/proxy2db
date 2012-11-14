@@ -84,8 +84,6 @@ sub usage();
 my $g_opt_string = 'fahv';
 my %g_opt;
 my $g_dbh;
-my %g_unresolved;
-my @g_filter_logs;
 my %g_filter_messages;
 my $g_filter_fileseek = 0;
 my $g_proxy_fileseek = 0;
@@ -94,11 +92,6 @@ my %g_filterset;
 my $g_debug = 0;
 my $g_dbcount = 0;
 
-my $FILE_GEOIP = "/usr/share/GeoIP/GeoLiteCity.dat";
-my $FORMAT_SQUID = 1;
-my $FORMAT_DANSGUARDIAN = 2;
-my $DB_EXPIRE_UNIT = "w";
-my $DB_EXPIRE_VALUE = "156";
 my $SYSLOG_NAME = "local6";
 
 #------------------------------------------------------------------------
