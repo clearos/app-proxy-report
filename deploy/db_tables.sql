@@ -21,6 +21,7 @@ CREATE TABLE `proxy` (
     UNIQUE KEY `md5` (`md5`),
     INDEX(ip),
     INDEX(timestamp),
+    INDEX(cache_code),
     INDEX(filter_code),
     INDEX(domain),
     INDEX(request(100)),
