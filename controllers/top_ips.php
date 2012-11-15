@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Domains report controller.
+ * Top IPs report controller.
  *
  * @category   Apps
  * @package    Proxy_Report
@@ -40,7 +40,7 @@ require_once clearos_app_base('reports') . '/controllers/report_factory.php';
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
- * Domains report controller.
+ * Top IPs report controller.
  *
  * @category   Apps
  * @package    Proxy_Report
@@ -51,7 +51,7 @@ require_once clearos_app_base('reports') . '/controllers/report_factory.php';
  * @link       http://www.clearfoundation.com/docs/developer/apps/proxy_report/
  */
 
-class Domains extends Report_Controller
+class Top_IPs extends Report_Controller
 {
     /**
      * Constructor.

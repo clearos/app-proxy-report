@@ -198,15 +198,15 @@ class Proxy_Report extends Database_Report
     }
 
     /**
-     * Returns date data.
+     * Returns traffic data.
      *
      * @param string $range range information
      *
-     * @return array IP summary data
+     * @return array traffic summary data
      * @throws Engine_Exception
      */
 
-    public function get_date_data($range = 'today')
+    public function get_traffic_data($range = 'today')
     {
         clearos_profile(__METHOD__, __LINE__);
 
@@ -221,11 +221,11 @@ class Proxy_Report extends Database_Report
             $group_by = 'DATE(timestamp)';
         }
 
-        $sql['select'] = "COUNT(request) AS hits, COUNT(DISTINCT ip) as ips, SUM(bytes)/1024/1024 AS size, $timespan ";
+        $sql['select'] = "COUNT(request) AS hits, COUNT(DISTINCT ip) as ips, SUM(bytes)/1024/1024 AS size, $timespan";
         $sql['from'] = 'proxy';
         $sql['where'] = 'request IS NOT NULL';
         $sql['group_by'] = $group_by;
-        $sql['order_by'] = 'timestamp DESC';
+        $sql['order_by'] = 'timestamp ASC';
 
         $options['range'] = $range;
 
@@ -234,11 +234,7 @@ class Proxy_Report extends Database_Report
         // Format report data
         //-------------------
 
-        $info = $this->get_report_info('date');
-
-        $report_data = array();
-        $report_data['header'] = $info['headers'];
-        $report_data['type'] = $info['types'];
+        $report_data = $this->_get_data_info('traffic');
 
         foreach ($entries as $entry) {
             $report_data['data'][] = array(
@@ -252,15 +248,15 @@ class Proxy_Report extends Database_Report
         return $report_data;
     }
     /**
-     * Returns domain summary data.
+     * Returns sites summary data.
      * 
      * @param string $range range information
      *
-     * @return array domain summary data
+     * @return array sites summary data
      * @throws Engine_Exception
      */
 
-    public function get_domain_data($range = 'today')
+    public function get_sites_data($range = 'today')
     {
         clearos_profile(__METHOD__, __LINE__);
 
@@ -310,18 +306,12 @@ class Proxy_Report extends Database_Report
         $sql['from'] = 'hits';
         $sql['joins'] = 'LEFT JOIN cache_hits ON hits.domain=cache_hits.domain LEFT JOIN warning_hits ON hits.domain=warning_hits.domain';
 
-$options['cache_time'] = 0; // FIXME
         $entries = $this->_run_query('proxy', $sql, $options);
 
         // Format report data
         //-------------------
 
-        $info = $this->get_report_info('domains');
-
-        $report_data = array();
-        $report_data['header'] = $info['headers'];
-        $report_data['type'] = $info['types'];
-        $report_data['chart_series'] = $info['chart_series'];
+        $report_data = $this->_get_data_info('top_sites');
 
         foreach ($entries as $entry) {
             $report_data['data'][] = array(
@@ -333,14 +323,6 @@ $options['cache_time'] = 0; // FIXME
                 (int) $entry['hits_percent']
             );
         }
-
-        // Add format information
-        //-----------------------
-
-        $report_data['format'] = array(
-            'series_units' => lang('proxy_report_hits'),
-            'baseline_data_points' => 10,
-        );
 
         return $report_data;
     }
@@ -405,7 +387,8 @@ $options['cache_time'] = 0; // FIXME
         // Get report data
         //----------------
 
-        $sql['select'] = 'ip, COUNT(request) AS hits, SUM(bytes)/1024/1024 AS size';
+        $sql['select'] = 'ip, COUNT(request) AS hits, SUM(bytes)/1024/1024 AS size, ' .
+            'SUM(filter_malware) AS malware, SUM(filter_block) AS block, SUM(filter_blacklist) AS blacklist';
         $sql['from'] = 'proxy';
         $sql['where'] = 'domain IS NOT NULL';
         $sql['group_by'] = 'ip';
@@ -418,27 +401,18 @@ $options['cache_time'] = 0; // FIXME
         // Format report data
         //-------------------
 
-        $info = $this->get_report_info('ips');
-
-        $report_data = array();
-        $report_data['header'] = $info['headers'];
-        $report_data['type'] = $info['types'];
-        $report_data['detail'] = $info['detail'];
+        $report_data = $this->_get_data_info('top_ips');
 
         foreach ($entries as $entry) {
             $report_data['data'][] = array(
                 $entry['ip'],
                 (int) $entry['size'],
-                (int) $entry['hits']
+                (int) $entry['hits'],
+                (int) $entry['malware'],
+                (int) $entry['block'],
+                (int) $entry['blacklist']
             );
         }
-
-        // Add format information
-        //-----------------------
-
-        $report_data['format'] = array(
-            'baseline_data_points' => 10,
-        );
 
         return $report_data;
     }
@@ -452,7 +426,7 @@ $options['cache_time'] = 0; // FIXME
      * @throws Engine_Exception
      */
 
-    public function get_ip_details_data($ip, $range = 'today')
+    public function get_ip_details_data($range = 'today', $ip)
     {
         clearos_profile(__METHOD__, __LINE__);
 
@@ -461,7 +435,8 @@ $options['cache_time'] = 0; // FIXME
 
         $ip = ip2long($ip); // TODO: not IPv6 friendly
 
-        $sql['select'] = 'domain, COUNT(request) AS hits, SUM(bytes)/1024/1024 AS size';
+        $sql['select'] = 'domain, COUNT(request) AS hits, SUM(bytes)/1024/1024 AS size, ' .
+            'SUM(filter_malware) AS malware, SUM(filter_block) AS block, SUM(filter_blacklist) AS blacklist';
         $sql['from'] = 'proxy';
         $sql['where'] = 'ip = \'' . $ip . '\'';
         $sql['group_by'] = 'domain';
@@ -474,14 +449,64 @@ $options['cache_time'] = 0; // FIXME
         // Format report data
         //-------------------
 
-        $info = $this->get_report_info('ip_details');
+        $report_data = $this->_get_data_info('ips');
+
+        foreach ($entries as $entry) {
+            $report_data['data'][] = array(
+                $entry['domain'],
+                (int) $entry['size'],
+                (int) $entry['hits'],
+                (int) $entry['malware'],
+                (int) $entry['block'],
+                (int) $entry['blacklist']
+            );
+        }
+
+        return $report_data;
+    }
+
+    /**
+     * Returns malware detail data.
+     *
+     * @param string $range range information
+     *
+     * @return array malware summary data
+     * @throws Engine_Exception
+     */
+
+    public function get_malware_details_data($range = 'today')
+    {
+        clearos_profile(__METHOD__, __LINE__);
+
+        // Get report data
+        //----------------
+
+        $sql['select'] = 'ip, username, domain, filter_detail, request, timestamp';
+        $sql['from'] = 'proxy';
+        $sql['where'] = 'filter_malware = 1';
+        $sql['order_by'] = 'timestamp ASC';
+
+        $options['range'] = $range;
+
+        $entries = $this->_run_query('proxy', $sql, $options);
+
+        // Format report data
+        //-------------------
+
+        $info = $this->get_report_info('malware_details');
 
         $report_data = array();
         $report_data['header'] = $info['headers'];
         $report_data['type'] = $info['types'];
 
         foreach ($entries as $entry)
-            $report_data['data'][] = array($entry['domain'], (int) $entry['size'], (int) $entry['hits']);
+            $report_data['data'][] = array(
+                $entry['timestamp'],
+                $entry['ip'],
+                $entry['username'],
+                $entry['filter_detail'],
+                $entry['domain']
+            );
 
         // Add format information
         //-----------------------
@@ -489,6 +514,57 @@ $options['cache_time'] = 0; // FIXME
         $report_data['format'] = array(
             'baseline_data_points' => 10,
         );
+
+        return $report_data;
+    }
+
+    /**
+     * Returns warning data.
+     *
+     * @param string $range range information
+     *
+     * @return array warning summary data
+     * @throws Engine_Exception
+     */
+
+    public function get_warning_data($range = 'today')
+    {
+        clearos_profile(__METHOD__, __LINE__);
+
+        // Get report data
+        //----------------
+
+        if (($range === 'today') || ($range === 'yesterday')) {
+            $timespan = 'DATE_FORMAT(timestamp, \'%Y-%m-%d %H:00:00\') as timestamp ';
+            $group_by = 'DATE(timestamp), HOUR(timestamp)';
+        } else {
+            $timespan = 'DATE_FORMAT(timestamp, \'%Y-%m-%d\') as timestamp ';
+            $group_by = 'DATE(timestamp)';
+        }
+
+        $sql['select'] = "SUM(filter_malware) AS malware, SUM(filter_block) AS block, SUM(filter_blacklist) AS blacklist, $timespan ";
+        $sql['from'] = 'proxy';
+        $sql['where'] = '(filter_malware = 1) || (filter_block = 1) || (filter_blacklist = 1)';
+        $sql['group_by'] = $group_by;
+        $sql['order_by'] = 'timestamp DESC';
+
+        $options['range'] = $range;
+
+        $entries = $this->_run_query('proxy', $sql, $options);
+
+        // Format report data
+        //-------------------
+
+        $report_data = $this->_get_data_info('warnings');
+
+        foreach ($entries as $entry) {
+            $report_data['data'][] = array(
+                $entry['timestamp'],
+                (int) $entry['malware'],
+                (int) $entry['block'],
+                (int) $entry['blacklist']
+            );
+        }
 
         return $report_data;
     }
@@ -505,14 +581,15 @@ $options['cache_time'] = 0; // FIXME
     
     protected function _get_definition()
     {
-        // Date
-        //-----
+        // Traffic Summary
+        //----------------
 
-        $reports['date'] = array(
+        $reports['traffic'] = array(
             'app' => 'proxy_report',
-            'title' => lang('proxy_report_date_summary'),
-            'api_data' => 'get_date_data',
-            'chart_type' => 'timeline',
+            'title' => lang('proxy_report_traffic_summary'),
+            'api_data' => 'get_traffic_data',
+            'chart_type' => 'bar',
+            'sort_column' => 0,
             'headers' => array(
                 lang('base_date'),
                 lang('proxy_report_size'),
@@ -525,63 +602,85 @@ $options['cache_time'] = 0; // FIXME
                 'int',
                 'int'
             ),
+            'chart_series' => array(
+                NULL,
+                TRUE,
+                FALSE,
+                FALSE
+            ),
         );
 
-        // IP Summary
-        //-----------
+        // Warning Summary
+        //----------------
 
-        $reports['ips'] = array(
+        $reports['warnings'] = array(
             'app' => 'proxy_report',
-            'title' => lang('proxy_report_ip_summary'),
+            'title' => lang('proxy_report_warning_summary'),
+            'api_data' => 'get_warning_data',
+            'chart_type' => 'bar',
+            'sort_column' => 0,
+            'headers' => array(
+                lang('base_date'),
+                lang('proxy_report_malware'),
+                lang('proxy_report_blocked'),
+                lang('proxy_report_blacklist')
+            ),
+            'types' => array(
+                'timestamp',
+                'int',
+                'int',
+                'int'
+            ),
+        );
+
+        // Top IPs
+        //--------
+
+        $reports['top_ips'] = array(
+            'app' => 'proxy_report',
+            'title' => lang('proxy_report_top_ips'),
             'api_data' => 'get_ip_data',
             'chart_type' => 'pie',
+            'format' => array(
+                'baseline_data_points' => 10,
+            ),
             'headers' => array(
                 lang('network_ip'),
                 lang('proxy_report_size'),
-                lang('proxy_report_hits')
+                lang('proxy_report_hits'),
+                lang('proxy_report_malware'),
+                lang('proxy_report_blocked'),
+                lang('proxy_report_blacklist')
             ),
             'types' => array(
                 'ip',
                 'int',
+                'int',
+                'int',
+                'int',
                 'int'
             ),
             'detail' => array(
-                '/app/proxy_report/ip_details/index/',
+                '/app/proxy_report/ips/index/',
                 NULL,
                 NULL 
             ),
         );
 
-        // IP Details
-        //-----------
+        // Top Sites
+        //----------
 
-        $reports['ip_details'] = array(
+        $reports['top_sites'] = array(
             'app' => 'proxy_report',
-            'title' => lang('proxy_report_ip_details'),
-            'api_data' => 'get_ip_details_data',
+            'title' => lang('proxy_report_top_sites'),
+            'api_data' => 'get_sites_data',
             'chart_type' => 'bar',
-            'headers' => array(
-                lang('network_ip'),
-                lang('proxy_report_size'),
-                lang('proxy_report_hits')
+            'format' => array(
+                'series_units' => lang('proxy_report_hits'),
+                'baseline_data_points' => 10,
             ),
-            'types' => array(
-                'string',
-                'int',
-                'int'
-            ),
-        );
-
-        // Domains Summary
-        //----------------
-
-        $reports['domains'] = array(
-            'app' => 'proxy_report',
-            'title' => lang('proxy_report_domain_summary'),
-            'api_data' => 'get_domain_data',
-            'chart_type' => 'bar',
             'headers' => array(
-                lang('proxy_report_domain'),
+                lang('proxy_report_site'),
                 lang('proxy_report_size'),
                 lang('proxy_report_hits'),
                 lang('proxy_report_warnings'),
@@ -605,6 +704,68 @@ $options['cache_time'] = 0; // FIXME
                 FALSE
             ),
         );
+
+        // IP Summary
+        //-----------
+
+        $reports['ips'] = array(
+            'app' => 'proxy_report',
+            'title' => lang('proxy_report_ip_summary'),
+            'api_data' => 'get_ip_details_data',
+            'chart_type' => 'bar',
+            'format' => array(
+                'baseline_data_points' => 10,
+            ),
+            'headers' => array(
+                lang('proxy_report_site'),
+                lang('proxy_report_size'),
+                lang('proxy_report_hits'),
+                lang('proxy_report_malware'),
+                lang('proxy_report_blocked'),
+                lang('proxy_report_blacklist')
+            ),
+            'types' => array(
+                'string',
+                'int',
+                'int',
+                'int',
+                'int',
+                'int'
+            ),
+            'chart_series' => array(
+                NULL,
+                TRUE,
+                FALSE,
+                FALSE,
+                FALSE,
+                FALSE
+            ),
+        );
+
+        // Malware Details
+        //----------------
+
+        $reports['malware_details'] = array(
+            'app' => 'proxy_report',
+            'title' => lang('proxy_report_malware_details'),
+            'api_data' => 'get_malware_details_data',
+            'chart_type' => 'bar',
+            'headers' => array(
+                lang('base_date'),
+                lang('network_ip'),
+                lang('base_username'),
+                lang('proxy_report_malware'),
+                lang('proxy_report_site')
+            ),
+            'types' => array(
+                'timestamp',
+                'ip',
+                'string',
+                'string',
+                'string'
+            ),
+        );
+
 
         // Done
         //-----

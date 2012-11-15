@@ -84,6 +84,8 @@ sub usage();
 my $g_opt_string = 'fahv';
 my %g_opt;
 my $g_dbh;
+my %g_unresolved;
+my @g_filter_logs;
 my %g_filter_messages;
 my $g_filter_fileseek = 0;
 my $g_proxy_fileseek = 0;
@@ -92,6 +94,11 @@ my %g_filterset;
 my $g_debug = 0;
 my $g_dbcount = 0;
 
+my $FILE_GEOIP = "/usr/share/GeoIP/GeoLiteCity.dat";
+my $FORMAT_SQUID = 1;
+my $FORMAT_DANSGUARDIAN = 2;
+my $DB_EXPIRE_UNIT = "w";
+my $DB_EXPIRE_VALUE = "156";
 my $SYSLOG_NAME = "local6";
 
 #------------------------------------------------------------------------
@@ -468,6 +475,31 @@ sub load_filter_logs($$$) {
             $g_filterset{$timestamp . "|" . $request}->{filter_detail} = $detail;
             $g_filterset{$timestamp . "|" . $request}->{filter_weight} = $weight;
             $g_filterset{$timestamp . "|" . $request}->{filter_ip} = $ip;
+
+            # Classify the code values into sane types.  In theory, these can overlap 
+            # (e.g. a malware *and* a blacklist site), but are mutually exclusive for now.
+
+            if (!defined($code)) {
+                $g_filterset{$timestamp . "|" . $request}->{filter_malware} = 0;
+                $g_filterset{$timestamp . "|" . $request}->{filter_block} = 0;
+                $g_filterset{$timestamp . "|" . $request}->{filter_blacklist} = 0;
+            } elsif (($code == 1101) || ($code == 1100)) {
+                $g_filterset{$timestamp . "|" . $request}->{filter_malware} = 1;
+                $g_filterset{$timestamp . "|" . $request}->{filter_block} = 0;
+                $g_filterset{$timestamp . "|" . $request}->{filter_blacklist} = 0;
+            } elsif (($code == 500) || ($code == 501)) {
+                $g_filterset{$timestamp . "|" . $request}->{filter_malware} = 0;
+                $g_filterset{$timestamp . "|" . $request}->{filter_block} = 0;
+                $g_filterset{$timestamp . "|" . $request}->{filter_blacklist} = 1;
+            } elsif ((($code > 0) && ($code < 600)) || (($code >= 700) && ($code < 1200))) {
+                $g_filterset{$timestamp . "|" . $request}->{filter_malware} = 0;
+                $g_filterset{$timestamp . "|" . $request}->{filter_block} = 1;
+                $g_filterset{$timestamp . "|" . $request}->{filter_blacklist} = 0;
+            } else {
+                $g_filterset{$timestamp . "|" . $request}->{filter_malware} = 0;
+                $g_filterset{$timestamp . "|" . $request}->{filter_block} = 0;
+                $g_filterset{$timestamp . "|" . $request}->{filter_blacklist} = 0;
+            }
         }
     }
 
@@ -524,6 +556,9 @@ sub load_dataset() {
                 # Override IP in case X-Forward is disabled for some reason
                 $g_dataset{$key}->{ip} = $g_filterset{$filterkey}->{filter_ip};
                 $g_dataset{$key}->{filter_code} = $g_filterset{$filterkey}->{filter_code};
+                $g_dataset{$key}->{filter_malware} = $g_filterset{$filterkey}->{filter_malware};
+                $g_dataset{$key}->{filter_block} = $g_filterset{$filterkey}->{filter_block};
+                $g_dataset{$key}->{filter_blacklist} = $g_filterset{$filterkey}->{filter_blacklist};
                 $g_dataset{$key}->{filter_detail} = $g_filterset{$filterkey}->{filter_detail};
                 $g_dataset{$key}->{filter_weight} = $g_filterset{$filterkey}->{filter_weight};
                 $g_dataset{$key}->{filter_data} = 1;
@@ -542,14 +577,17 @@ sub load_dataset() {
         } else {
             print "debug: filtercode missing for $key\n" if $g_debug;
             $g_dataset{$key}->{filter_code} = 0;
+            $g_dataset{$key}->{filter_malware} = 0;
+            $g_dataset{$key}->{filter_block} = 0;
+            $g_dataset{$key}->{filter_blacklist} = 0;
             $g_dataset{$key}->{filter_detail} = "";
             $g_dataset{$key}->{filter_weight} = 0;
         }
     
         # Insert into database
         my $query = qq|
-            INSERT INTO proxy (timestamp, duration, ip, cache_code, status, bytes, method, request, username, content_type, domain, md5, filter_code, filter_detail)
-            VALUES ( FROM_UNIXTIME(?), ?, INET_ATON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO proxy (timestamp, duration, ip, cache_code, status, bytes, method, request, username, content_type, domain, md5, filter_code, filter_detail, filter_malware, filter_block, filter_blacklist)
+            VALUES ( FROM_UNIXTIME(?), ?, INET_ATON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |;
     
         my $sth = $g_dbh->prepare($query);
@@ -569,7 +607,10 @@ sub load_dataset() {
                 $g_dataset{$key}->{domain},
                 $g_dataset{$key}->{md5},
                 $g_dataset{$key}->{filter_code},
-                $g_dataset{$key}->{filter_detail}
+                $g_dataset{$key}->{filter_detail},
+                $g_dataset{$key}->{filter_malware},
+                $g_dataset{$key}->{filter_block},
+                $g_dataset{$key}->{filter_blacklist}
             );
         };
 
@@ -726,16 +767,15 @@ sub parse_dansguardian_log_line {
 
         $date = "$date $time";
         $timestamp = parsedate($date);
+        $code = 0;
 
         # Empty code information
         if ($toeol =~ /^ /) {
-            $code = 0;
             $detail = "";
             $toeol =~ s/^ //;
 
         # Populated code field
         } elsif ($toeol =~ / (GET|CONNECT) /) {
-            $code = 0;
             $detail = "unknown";
 
             $toeol =~ /(\*.*\*) (.*) (GET|CONNECT) .*/;

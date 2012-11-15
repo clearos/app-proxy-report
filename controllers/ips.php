@@ -1,7 +1,7 @@
 <?php
 
 /**
- * IP report controller.
+ * IP summary report controller.
  *
  * @category   Apps
  * @package    Proxy_Report
@@ -40,7 +40,7 @@ require_once clearos_app_base('reports') . '/controllers/report_factory.php';
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
- * IP report controller.
+ * IP summary report controller.
  *
  * @category   Apps
  * @package    Proxy_Report

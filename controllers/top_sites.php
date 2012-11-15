@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Proxy traffic report controller.
+ * Top sites report controller.
  *
  * @category   Apps
  * @package    Proxy_Report
@@ -40,7 +40,7 @@ require_once clearos_app_base('reports') . '/controllers/report_factory.php';
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
- * Proxy traffic report controller.
+ * Top sites report controller.
  *
  * @category   Apps
  * @package    Proxy_Report
@@ -51,7 +51,7 @@ require_once clearos_app_base('reports') . '/controllers/report_factory.php';
  * @link       http://www.clearfoundation.com/docs/developer/apps/proxy_report/
  */
 
-class Traffic extends Report_Controller
+class Top_Sites extends Report_Controller
 {
     /**
      * Constructor.
