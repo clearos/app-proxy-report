@@ -14,4 +14,4 @@ $lang['proxy_report_ips'] = 'IPs';
 $lang['proxy_report_cache_hits'] = 'Cache Hits';
 $lang['proxy_report_cache_percentage'] = 'Cache %';
 $lang['proxy_report_date_summary'] = 'Date Summary';
-
+$lang['proxy_report_warnings'] = 'Warnings';

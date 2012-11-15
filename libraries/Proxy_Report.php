@@ -274,7 +274,7 @@ class Proxy_Report extends Database_Report
         $sql['from'] = 'proxy';
         $sql['where'] = 'domain IS NOT NULL';
         $sql['group_by'] = 'domain';
-        $sql['order_by'] = 'hits DESC';
+        $sql['order_by'] = 'size DESC';
 
         $this->_create_temporary_table('proxy', $sql, $create_options);
 
@@ -284,7 +284,17 @@ class Proxy_Report extends Database_Report
         $sql['from'] = 'proxy';
         $sql['where'] = 'cache_code LIKE \'%HIT%\'';
         $sql['group_by'] = 'domain';
-        $sql['order_by'] = 'hits DESC';
+        $sql['order_by'] = 'size DESC';
+
+        $this->_create_temporary_table('proxy', $sql, $create_options);
+
+        $sql = array();
+        $sql['table'] = 'warning_hits';
+        $sql['select'] = ' `domain`, COUNT(`request`) AS `hits` , SUM(`bytes`)/1024/1024 AS `size`';
+        $sql['from'] = 'proxy';
+        $sql['where'] = 'filter_code = 1100';
+        $sql['group_by'] = 'domain';
+        $sql['order_by'] = 'size DESC';
 
         $this->_create_temporary_table('proxy', $sql, $create_options);
 
@@ -294,11 +304,13 @@ class Proxy_Report extends Database_Report
         $sql = array();
         $sql['select'] = 
             'hits.domain, hits.hits, hits.size, ' .
+            'warning_hits.hits as warning_hits, ' .
             'cache_hits.hits AS cache_hits, ' .
             '((cache_hits.hits*100)/hits.hits) AS hits_percent';
         $sql['from'] = 'hits';
-        $sql['left_join'] = 'cache_hits ON hits.domain=cache_hits.domain';
+        $sql['joins'] = 'LEFT JOIN cache_hits ON hits.domain=cache_hits.domain LEFT JOIN warning_hits ON hits.domain=warning_hits.domain';
 
+$options['cache_time'] = 0; // FIXME
         $entries = $this->_run_query('proxy', $sql, $options);
 
         // Format report data
@@ -309,12 +321,14 @@ class Proxy_Report extends Database_Report
         $report_data = array();
         $report_data['header'] = $info['headers'];
         $report_data['type'] = $info['types'];
+        $report_data['chart_series'] = $info['chart_series'];
 
         foreach ($entries as $entry) {
             $report_data['data'][] = array(
                 $entry['domain'],
                 (int) $entry['size'],
                 (int) $entry['hits'],
+                (int) $entry['warning_hits'],
                 (int) $entry['cache_hits'],
                 (int) $entry['hits_percent']
             );
@@ -395,7 +409,7 @@ class Proxy_Report extends Database_Report
         $sql['from'] = 'proxy';
         $sql['where'] = 'domain IS NOT NULL';
         $sql['group_by'] = 'ip';
-        $sql['order_by'] = 'hits DESC';
+        $sql['order_by'] = 'size DESC';
 
         $options['range'] = $range;
 
@@ -451,7 +465,7 @@ class Proxy_Report extends Database_Report
         $sql['from'] = 'proxy';
         $sql['where'] = 'ip = \'' . $ip . '\'';
         $sql['group_by'] = 'domain';
-        $sql['order_by'] = 'hits DESC';
+        $sql['order_by'] = 'size DESC';
 
         $options['range'] = $range;
 
@@ -570,6 +584,7 @@ class Proxy_Report extends Database_Report
                 lang('proxy_report_domain'),
                 lang('proxy_report_size'),
                 lang('proxy_report_hits'),
+                lang('proxy_report_warnings'),
                 lang('proxy_report_cache_hits'),
                 lang('proxy_report_cache_percentage'),
             ),
@@ -578,7 +593,16 @@ class Proxy_Report extends Database_Report
                 'int',
                 'int',
                 'int',
+                'int',
                 'int'
+            ),
+            'chart_series' => array(
+                NULL,
+                TRUE,
+                FALSE,
+                FALSE,
+                FALSE,
+                FALSE
             ),
         );
 
