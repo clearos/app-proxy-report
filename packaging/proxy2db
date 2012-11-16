@@ -584,12 +584,19 @@ sub load_dataset() {
             $g_dataset{$key}->{filter_weight} = 0;
         }
 
-        # See how shortening the domain to 3 parts will behave
-        my @parts = reverse(split(/\.+/, $g_dataset{$key}->{domain}));
-        $#parts = 2 if ($#parts > 2);
-        @parts = reverse(@parts);
+        # Add a more useful base_domain to strip out those crazy URLs from CDNs.
+        my $base_domain = $g_dataset{$key}->{domain};
+        $base_domain =~ s/:.*//; # strip out port number
 
-        my $base_domain = join('.', @parts);
+        $_ = $base_domain;
+
+        if (! (/^[0-9\.]*$/)) {  # leave IPs alone
+            my @parts = reverse(split(/\.+/, $base_domain));
+            $#parts = 2 if ($#parts > 2);
+            @parts = reverse(@parts);
+
+            $base_domain = join('.', @parts);
+        }
 
         # Insert into database
         my $query = qq|

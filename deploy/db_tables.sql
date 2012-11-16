@@ -11,6 +11,7 @@ CREATE TABLE `proxy` (
     `method` varchar(64) default NULL,
     `request` text NOT NULL,
     `domain` varchar(128) default NULL,
+    `base_domain` varchar(128) default NULL,
     `content_type` text default NULL,
     `filter_code` int(11) default NULL,
     `filter_detail` text default NULL,
@@ -30,6 +31,7 @@ CREATE TABLE `proxy` (
     INDEX(filter_block),
     INDEX(filter_blacklist),
     INDEX(domain),
+    INDEX(base_domain),
     INDEX(request(100)),
     INDEX(username),
     INDEX(username, timestamp)

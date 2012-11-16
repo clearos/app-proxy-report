@@ -20,3 +20,6 @@ $lang['proxy_report_blocked'] = 'Blocked';
 $lang['proxy_report_blacklist'] = 'Blacklist';
 $lang['proxy_report_top_ips'] = 'Top IPs';
 $lang['proxy_report_top_sites'] = 'Top Sites';
+$lang['proxy_report_bytes'] = 'Bytes';
+$lang['proxy_report_malware_details'] = 'Malware Details';
+$lang['proxy_report_incidents'] = 'Incidents';
