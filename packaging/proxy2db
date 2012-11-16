@@ -583,11 +583,18 @@ sub load_dataset() {
             $g_dataset{$key}->{filter_detail} = "";
             $g_dataset{$key}->{filter_weight} = 0;
         }
-    
+
+        # See how shortening the domain to 3 parts will behave
+        my @parts = reverse(split(/\.+/, $g_dataset{$key}->{domain}));
+        $#parts = 2 if ($#parts > 2);
+        @parts = reverse(@parts);
+
+        my $base_domain = join('.', @parts);
+
         # Insert into database
         my $query = qq|
-            INSERT INTO proxy (timestamp, duration, ip, cache_code, status, bytes, method, request, username, content_type, domain, md5, filter_code, filter_detail, filter_malware, filter_block, filter_blacklist)
-            VALUES ( FROM_UNIXTIME(?), ?, INET_ATON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO proxy (timestamp, duration, ip, cache_code, status, bytes, method, request, username, content_type, domain, base_domain,  md5, filter_code, filter_detail, filter_malware, filter_block, filter_blacklist)
+            VALUES ( FROM_UNIXTIME(?), ?, INET_ATON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |;
     
         my $sth = $g_dbh->prepare($query);
@@ -605,6 +612,7 @@ sub load_dataset() {
                 $g_dataset{$key}->{username},
                 $g_dataset{$key}->{content_type},
                 $g_dataset{$key}->{domain},
+                $base_domain,
                 $g_dataset{$key}->{md5},
                 $g_dataset{$key}->{filter_code},
                 $g_dataset{$key}->{filter_detail},
