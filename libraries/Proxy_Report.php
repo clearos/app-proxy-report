@@ -707,6 +707,46 @@ class Proxy_Report extends Database_Report
             ),
         );
 
+        // IP Detail
+        //----------
+
+
+        $reports['ips'] = array(
+            'app' => 'proxy_report',
+            'title' => lang('proxy_report_ip_summary'),
+            'api_data' => 'get_ip_details_data',
+            'chart_type' => 'bar',
+            'is_detail' => TRUE,
+            'format' => array(
+                'series_label' => lang('proxy_report_incidents'),
+                'baseline_data_points' => 10,
+            ),
+            'headers' => array(
+                lang('proxy_report_site'),
+                lang('proxy_report_size'),
+                lang('proxy_report_hits'),
+                lang('proxy_report_malware'),
+                lang('proxy_report_blocked'),
+                lang('proxy_report_blacklist')
+            ),
+            'types' => array(
+                'string',
+                'int',
+                'int',
+                'int',
+                'int',
+                'int'
+            ),
+            'chart_series' => array(
+                NULL,
+                TRUE,
+                FALSE,
+                FALSE,
+                FALSE,
+                FALSE
+            ),
+        );
+
         // Done
         //-----
 
