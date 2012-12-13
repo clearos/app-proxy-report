@@ -45,3 +45,7 @@ $app['core_file_manifest'] = array(
         'mode' => '0755',
     ),
 );
+
+$app['delete_dependency'] = array(
+    'app-proxy-report-core'
+);
