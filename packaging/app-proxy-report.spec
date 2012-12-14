@@ -1,7 +1,7 @@
 
 Name: app-proxy-report
 Epoch: 1
-Version: 1.4.6
+Version: 1.4.8
 Release: 1%{dist}
 Summary: Filter and Proxy Report
 License: GPLv3
@@ -38,6 +38,7 @@ cp -r * %{buildroot}/usr/clearos/apps/proxy_report/
 
 install -D -m 0644 packaging/app-proxy-report.cron %{buildroot}/etc/cron.d/app-proxy-report
 install -D -m 0755 packaging/proxy2db %{buildroot}/usr/sbin/proxy2db
+install -D -m 0755 packaging/purge-proxy %{buildroot}/usr/sbin/purge-proxy
 
 %post
 logger -p local6.notice -t installer 'app-proxy-report - installing'
@@ -82,3 +83,4 @@ exit 0
 /usr/clearos/apps/proxy_report/libraries
 /etc/cron.d/app-proxy-report
 /usr/sbin/proxy2db
+/usr/sbin/purge-proxy

@@ -1,1 +1,2 @@
 2 * * * * root /usr/sbin/proxy2db >/dev/null 2>&1
+2 3 * * * root /usr/sbin/purge-proxy >/dev/null 2>&1

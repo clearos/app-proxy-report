@@ -5,7 +5,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 $app['basename'] = 'proxy_report';
-$app['version'] = '1.4.6';
+$app['version'] = '1.4.8';
 $app['release'] = '1';
 $app['vendor'] = 'ClearFoundation';
 $app['packager'] = 'ClearFoundation';
@@ -42,6 +42,10 @@ $app['core_file_manifest'] = array(
     'app-proxy-report.cron' => array( 'target' => '/etc/cron.d/app-proxy-report'),
     'proxy2db' => array(
         'target' => '/usr/sbin/proxy2db',
+        'mode' => '0755',
+    ),
+    'purge-proxy' => array(
+        'target' => '/usr/sbin/purge-proxy',
         'mode' => '0755',
     ),
 );
