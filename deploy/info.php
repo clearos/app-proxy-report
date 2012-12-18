@@ -34,7 +34,7 @@ $app['controllers']['settings']['title'] = lang('base_settings');
 
 $app['core_requires'] = array(
     'app-reports-core >= 1:1.4.2',
-    'app-reports-database-core >= 1:1.4.2',
+    'app-reports-database-core >= 1:1.4.8',
     'app-tasks-core',
 );
 

@@ -20,7 +20,7 @@ License: LGPLv3
 Group: ClearOS/Libraries
 Requires: app-base-core
 Requires: app-reports-core >= 1:1.4.2
-Requires: app-reports-database-core >= 1:1.4.2
+Requires: app-reports-database-core >= 1:1.4.8
 Requires: app-tasks-core
 
 %description core
