@@ -1,5 +1,0 @@
-#!/bin/sh
-
-# FIXME: remove "yes" which forces a reset
-logger -p local6.notice -t installer "app-proxy-report-core - initializing tables"
-/usr/sbin/initialize-report-tables proxy /usr/clearos/apps/proxy_report/deploy/db_tables.sql yes >/dev/null 2>&1

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# Create report database
+/usr/sbin/initialize-report-tables proxy_report
