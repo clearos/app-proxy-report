@@ -253,8 +253,7 @@ class Proxy_Report extends Database_Report
         //----------------
 
         $sql = array();
-        $sql['select'] = 
-            'hits.timestamp, hits.hits, hits.size, hits.ips, ' .
+        $sql['select'] = 'hits.timestamp, hits.hits, hits.size, hits.ips, ' .
             'warning_hits.hits as warning_hits, ' .
             'cache_hits.hits AS cache_hits, ' .
             '((cache_hits.hits*100)/hits.hits) AS hits_percent';
@@ -377,6 +376,7 @@ class Proxy_Report extends Database_Report
     /**
      * Returns IP detail data.
      *
+     * @param string $ip    IP address
      * @param string $range range information
      *
      * @return array IP summary data
