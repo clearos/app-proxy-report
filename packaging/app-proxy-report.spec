@@ -1,7 +1,7 @@
 
 Name: app-proxy-report
 Epoch: 1
-Version: 1.4.14
+Version: 1.4.15
 Release: 1%{dist}
 Summary: Filter and Proxy Report
 License: GPLv3
