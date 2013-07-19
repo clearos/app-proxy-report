@@ -24,6 +24,7 @@ Requires: app-reports-database-core >= 1:1.4.8
 Requires: app-tasks-core
 Requires: perl
 Requires: perl-JSON
+Requires: perl-Time-modules
 
 %description core
 The Filter and Proxy Report provides a view of web usage on your network.

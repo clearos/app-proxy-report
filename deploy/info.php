@@ -38,6 +38,7 @@ $app['core_requires'] = array(
     'app-tasks-core',
     'perl',
     'perl-JSON',
+    'perl-Time-modules'
 );
 
 $app['core_file_manifest'] = array(
