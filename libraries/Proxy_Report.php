@@ -423,6 +423,99 @@ class Proxy_Report extends Database_Report
     }
 
     /**
+     * Returns IP summary data.
+     *
+     * @param string $range range information
+     *
+     * @return array IP summary data
+     * @throws Engine_Exception
+     */
+
+    public function get_user_data($range = 'today')
+    {
+        clearos_profile(__METHOD__, __LINE__);
+
+        // Get report data
+        //----------------
+
+        $sql['select'] = 'username, COUNT(request) AS hits, SUM(bytes)/1024/1024 AS size, ' .
+            'SUM(filter_malware) AS malware, SUM(filter_block) AS block, SUM(filter_blacklist) AS blacklist';
+        $sql['from'] = 'proxy';
+        $sql['where'] = 'base_domain IS NOT NULL';
+        $sql['group_by'] = 'username';
+        $sql['order_by'] = 'size DESC';
+
+        $options['range'] = $range;
+
+        $entries = $this->_run_query('proxy', $sql, $options);
+
+        // Format report data
+        //-------------------
+
+        $report_data = $this->_get_data_info('top_users');
+
+        foreach ($entries as $entry) {
+            $report_data['data'][] = array(
+                $entry['username'],
+                (int) $entry['size'],
+                (int) $entry['hits'],
+                (int) $entry['malware'],
+                (int) $entry['block'],
+                (int) $entry['blacklist']
+            );
+        }
+
+        return $report_data;
+    }
+
+    /**
+     * Returns user detail data.
+     *
+     * @param string $username username
+     * @param string $range    range information
+     *
+     * @return array user summary data
+     * @throws Engine_Exception
+     */
+
+    public function get_user_details_data($username, $range = 'today')
+    {
+        clearos_profile(__METHOD__, __LINE__);
+
+        // Get report data
+        //----------------
+
+        $sql['select'] = 'base_domain, COUNT(request) AS hits, SUM(bytes)/1024/1024 AS size, ' .
+            'SUM(filter_malware) AS malware, SUM(filter_block) AS block, SUM(filter_blacklist) AS blacklist';
+        $sql['from'] = 'proxy';
+        $sql['where'] = 'username = \'' . $username . '\'';
+        $sql['group_by'] = 'base_domain';
+        $sql['order_by'] = 'size DESC';
+
+        $options['range'] = $range;
+
+        $entries = $this->_run_query('proxy', $sql, $options);
+
+        // Format report data
+        //-------------------
+
+        $report_data = $this->_get_data_info('users');
+
+        foreach ($entries as $entry) {
+            $report_data['data'][] = array(
+                $entry['base_domain'],
+                (int) $entry['size'],
+                (int) $entry['hits'],
+                (int) $entry['malware'],
+                (int) $entry['block'],
+                (int) $entry['blacklist']
+            );
+        }
+
+        return $report_data;
+    }
+
+    /**
      * Returns malware detail data.
      *
      * @param string $range range information
@@ -597,6 +690,40 @@ class Proxy_Report extends Database_Report
             ),
         );
 
+        // Top Users
+        //----------
+
+        $reports['top_users'] = array(
+            'app' => 'proxy_report',
+            'title' => lang('proxy_report_top_users'),
+            'api_data' => 'get_user_data',
+            'chart_type' => 'pie',
+            'format' => array(
+                'baseline_data_points' => 10,
+            ),
+            'headers' => array(
+                lang('base_username'),
+                lang('proxy_report_size'),
+                lang('proxy_report_hits'),
+                lang('proxy_report_malware'),
+                lang('proxy_report_blocked'),
+                lang('proxy_report_blacklist')
+            ),
+            'types' => array(
+                'string',
+                'int',
+                'int',
+                'int',
+                'int',
+                'int'
+            ),
+            'detail' => array(
+                '/app/proxy_report/users/index/',
+                NULL,
+                NULL 
+            ),
+        );
+
         // Top IPs
         //--------
 
@@ -710,7 +837,6 @@ class Proxy_Report extends Database_Report
         // IP Detail
         //----------
 
-
         $reports['ips'] = array(
             'app' => 'proxy_report',
             'title' => lang('proxy_report_ip_summary'),
@@ -718,7 +844,46 @@ class Proxy_Report extends Database_Report
             'chart_type' => 'bar',
             'is_detail' => TRUE,
             'format' => array(
-                'series_label' => lang('proxy_report_incidents'),
+                'series_label' => lang('proxy_report_size'),
+                'baseline_data_points' => 10,
+            ),
+            'headers' => array(
+                lang('proxy_report_site'),
+                lang('proxy_report_size'),
+                lang('proxy_report_hits'),
+                lang('proxy_report_malware'),
+                lang('proxy_report_blocked'),
+                lang('proxy_report_blacklist')
+            ),
+            'types' => array(
+                'string',
+                'int',
+                'int',
+                'int',
+                'int',
+                'int'
+            ),
+            'chart_series' => array(
+                NULL,
+                TRUE,
+                FALSE,
+                FALSE,
+                FALSE,
+                FALSE
+            ),
+        );
+
+        // User Detail
+        //------------
+
+        $reports['users'] = array(
+            'app' => 'proxy_report',
+            'title' => lang('proxy_report_user_summary'),
+            'api_data' => 'get_user_details_data',
+            'chart_type' => 'bar',
+            'is_detail' => TRUE,
+            'format' => array(
+                'series_label' => lang('proxy_report_size'),
                 'baseline_data_points' => 10,
             ),
             'headers' => array(
