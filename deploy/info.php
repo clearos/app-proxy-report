@@ -36,6 +36,8 @@ $app['core_requires'] = array(
     'app-reports-core >= 1:1.4.2',
     'app-reports-database-core >= 1:1.4.8',
     'app-tasks-core',
+    'perl',
+    'perl-JSON',
 );
 
 $app['core_file_manifest'] = array(

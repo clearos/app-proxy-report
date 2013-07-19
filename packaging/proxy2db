@@ -50,6 +50,7 @@ use Socket;
 use Sys::Syslog qw(:DEFAULT setlogsock);
 use Time::ParseDate;
 use Fcntl;
+use JSON;
 
 #------------------------------------------------------------------------
 # Initialization
@@ -74,6 +75,7 @@ sub get_filter_messages();
 sub load_dataset();
 sub load_filter_logs($$$);
 sub log_msg($);
+sub prep_maps();
 sub process_proxy_log();
 sub usage();
 
@@ -93,6 +95,7 @@ my %g_dataset;
 my %g_filterset;
 my $g_debug = 0;
 my $g_dbcount = 0;
+my $g_user_map;
 
 my $FILE_GEOIP = "/usr/share/GeoIP/GeoLiteCity.dat";
 my $FORMAT_SQUID = 1;
@@ -113,6 +116,7 @@ usage() if defined $g_opt{h};
 #------------------------------------------------------------------------
 
 startup();
+prep_maps();
 db_connect();
 get_filter_messages();
 process_proxy_log();
@@ -228,6 +232,18 @@ sub get_proxy_log_list() {
 }
 
 #------------------------------------------------------------------------
+# prep_maps - loads MAC and Username maps
+#------------------------------------------------------------------------
+
+sub prep_maps() {
+    if (-e '/var/clearos/network_map/usernames.dat') {
+        my $username_json = `cat /var/clearos/network_map/usernames.dat`;
+
+        $g_user_map = decode_json($username_json);
+    }
+}
+
+#------------------------------------------------------------------------
 # process_proxy_log - load proxy log data.
 #
 # while (still_parsing_logs)
@@ -334,6 +350,8 @@ sub process_proxy_log() {
 
             if (defined($g_opt{f}) || ($timestamp >= $lastrun)) {
                 next if ($request =~ /:82.public.filtered.php/);
+
+                $username = $g_user_map->{$ip} if ((($username =~ /^\s*$/) || ($username eq '-')) && (defined($g_user_map->{$ip})));
 
                 print "debug: loading proxy request $timestamp|$request\n" if $g_debug;
                 $g_dataset{$timestamp . "|" . $request}->{timestamp} = $timestamp;
@@ -849,7 +867,7 @@ sub db_connect() {
         }
     }
 
-    system("/usr/sbin/initialize-report-tables proxy_report");
+    system("/usr/sbin/initialize-report-tables proxy_report >/dev/null 2>&1");
 
     my $retry = 0;
 
@@ -867,7 +885,7 @@ sub db_connect() {
             if ($DBI::err eq 2003) {
                 system("/sbin/service system-mysqld start >/dev/null 2>&1");
             } else {
-                system("/usr/sbin/initialize-report-tables proxy /usr/clearos/apps/proxy_report/deploy/db_tables.sql");
+                system("/usr/sbin/initialize-report-tables proxy_report >/dev/null 2>&1");
             }
 
             $retry++;
