@@ -390,7 +390,7 @@ class Proxy_Report extends Database_Report
         // Get report data
         //----------------
 
-        $ip = ip2long($ip); // TODO: not IPv6 friendly
+        $ip = sprintf("%u", ip2long($ip)); // TODO: not IPv6 friendly
 
         $sql['select'] = 'base_domain, COUNT(request) AS hits, SUM(bytes)/1024/1024 AS size, ' .
             'SUM(filter_malware) AS malware, SUM(filter_block) AS block, SUM(filter_blacklist) AS blacklist';
