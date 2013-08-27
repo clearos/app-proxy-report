@@ -7,7 +7,7 @@
  * @package    proxy-report
  * @subpackage libraries
  * @author     ClearFoundation <developer@clearfoundation.com>
- * @copyright  2012 ClearFoundation
+ * @copyright  2012-2013 ClearFoundation
  * @license    http://www.gnu.org/copyleft/lgpl.html GNU Lesser General Public License version 3 or later
  * @link       http://www.clearfoundation.com/docs/developer/apps/proxy_report/
  */
@@ -86,7 +86,7 @@ clearos_load_library('base/Validation_Exception');
  * @package    proxy-report
  * @subpackage libraries
  * @author     ClearFoundation <developer@clearfoundation.com>
- * @copyright  2012 ClearFoundation
+ * @copyright  2012-2013 ClearFoundation
  * @license    http://www.gnu.org/copyleft/lgpl.html GNU Lesser General Public License version 3 or later
  * @link       http://www.clearfoundation.com/docs/developer/apps/proxy_report/
  */
@@ -628,7 +628,7 @@ class Proxy_Report extends Database_Report
             'app' => 'proxy_report',
             'title' => lang('proxy_report_traffic_summary'),
             'api_data' => 'get_traffic_data',
-            'chart_type' => 'bar',
+            'chart_type' => 'timeline',
             'sort_column' => 0,
             'format' => array(
                 'series_label' => lang('base_megabytes'),
@@ -651,15 +651,6 @@ class Proxy_Report extends Database_Report
                 'int',
                 'int',
                 'int'
-            ),
-            'chart_series' => array(
-                NULL,
-                TRUE,
-                FALSE,
-                FALSE,
-                FALSE,
-                FALSE,
-                FALSE
             ),
         );
 
@@ -787,14 +778,6 @@ class Proxy_Report extends Database_Report
                 'int',
                 'int'
             ),
-            'chart_series' => array(
-                NULL,
-                TRUE,
-                FALSE,
-                FALSE,
-                FALSE,
-                FALSE
-            ),
         );
 
         // Malware Details
@@ -863,14 +846,6 @@ class Proxy_Report extends Database_Report
                 'int',
                 'int'
             ),
-            'chart_series' => array(
-                NULL,
-                TRUE,
-                FALSE,
-                FALSE,
-                FALSE,
-                FALSE
-            ),
         );
 
         // User Detail
@@ -901,14 +876,6 @@ class Proxy_Report extends Database_Report
                 'int',
                 'int',
                 'int'
-            ),
-            'chart_series' => array(
-                NULL,
-                TRUE,
-                FALSE,
-                FALSE,
-                FALSE,
-                FALSE
             ),
         );
 
