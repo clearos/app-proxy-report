@@ -351,7 +351,7 @@ sub process_proxy_log() {
             if (defined($g_opt{f}) || ($timestamp >= $lastrun)) {
                 next if ($request =~ /:82.public.filtered.php/);
 
-                $username = $g_user_map->{$ip} if ((($username =~ /^\s*$/) || ($username eq '-')) && (defined($g_user_map->{$ip})));
+                $username = $g_user_map->{$ip} if ((($username =~ /^\s*$/) || ($username eq '-')) && (ref($g_user_map) eq 'HASH') && (defined($g_user_map->{$ip})));
 
                 print "debug: loading proxy request $timestamp|$request\n" if $g_debug;
                 $g_dataset{$timestamp . "|" . $request}->{timestamp} = $timestamp;
