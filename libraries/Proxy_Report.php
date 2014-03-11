@@ -630,9 +630,10 @@ class Proxy_Report extends Database_Report
             'api_data' => 'get_traffic_data',
             'chart_type' => 'timeline',
             'sort_column' => 0,
+            'series_highlight' => 1,
             'format' => array(
-                'series_label' => lang('base_megabytes'),
-                'baseline_format' => 'timestamp'
+                'baseline_format' => 'timestamp',
+                'series_format' => '%#.1f'
             ),
             'headers' => array(
                 lang('base_date'),
