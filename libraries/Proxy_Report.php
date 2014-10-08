@@ -631,10 +631,6 @@ class Proxy_Report extends Database_Report
             'chart_type' => 'timeline',
             'sort_column' => 0,
             'series_highlight' => 1,
-            'format' => array(
-                'baseline_format' => 'timestamp',
-                'series_format' => '%#.1f'
-            ),
             'headers' => array(
                 lang('base_date'),
                 lang('proxy_report_size'),
@@ -664,10 +660,6 @@ class Proxy_Report extends Database_Report
             'api_data' => 'get_warning_data',
             'chart_type' => 'bar',
             'sort_column' => 0,
-            'format' => array(
-                'series_label' => lang('proxy_report_incidents'),
-                'baseline_format' => 'timestamp'
-            ),
             'headers' => array(
                 lang('base_date'),
                 lang('proxy_report_malware'),
@@ -759,8 +751,6 @@ class Proxy_Report extends Database_Report
             'api_data' => 'get_sites_data',
             'chart_type' => 'horizontal_bar',
             'format' => array(
-                'series_label' => lang('base_megabytes'),
-                'series_format' => '%d',
                 'baseline_data_points' => 10,
             ),
             'headers' => array(
@@ -828,7 +818,6 @@ class Proxy_Report extends Database_Report
             'chart_type' => 'bar',
             'is_detail' => TRUE,
             'format' => array(
-                'series_label' => lang('proxy_report_size'),
                 'baseline_data_points' => 10,
             ),
             'headers' => array(
@@ -859,7 +848,6 @@ class Proxy_Report extends Database_Report
             'chart_type' => 'bar',
             'is_detail' => TRUE,
             'format' => array(
-                'series_label' => lang('proxy_report_size'),
                 'baseline_data_points' => 10,
             ),
             'headers' => array(
