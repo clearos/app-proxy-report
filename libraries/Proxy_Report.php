@@ -745,6 +745,7 @@ class Proxy_Report extends Database_Report
         // Top Sites
         //----------
 
+/*
         $reports['top_sites'] = array(
             'app' => 'proxy_report',
             'title' => lang('proxy_report_top_sites'),
@@ -770,6 +771,7 @@ class Proxy_Report extends Database_Report
                 'int'
             ),
         );
+*/
 
         // Malware Details
         //----------------
