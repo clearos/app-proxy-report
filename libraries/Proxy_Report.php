@@ -270,8 +270,8 @@ class Proxy_Report extends Database_Report
         foreach ($entries as $entry) {
             $report_data['data'][] = array(
                 $entry['timestamp'],
-                (int) $entry['size'],
                 (int) $entry['hits'],
+                (int) $entry['size'],
                 (int) $entry['cache_hits'],
                 (int) $entry['hits_percent'],
                 (int) $entry['warning_hits'],
@@ -302,7 +302,8 @@ class Proxy_Report extends Database_Report
         $sql['from'] = 'proxy';
         $sql['where'] = 'base_domain IS NOT NULL';
         $sql['group_by'] = 'base_domain';
-        $sql['order_by'] = 'size DESC';
+        $sql['order_by'] = 'hits DESC';
+        $sql['limit'] = '5';
 
         $options['range'] = $range;
 
@@ -314,10 +315,11 @@ class Proxy_Report extends Database_Report
         $report_data = $this->_get_data_info('top_sites');
 
         foreach ($entries as $entry) {
+            $trimmed = (strlen($entry['base_domain']) > 25) ? substr($entry['base_domain'], 0, 25) . '...' : $entry['base_domain'];
             $report_data['data'][] = array(
-                $entry['base_domain'],
-                (int) $entry['size'],
+                $trimmed,
                 (int) $entry['hits'],
+                (int) $entry['size'],
                 (int) $entry['malware'],
                 (int) $entry['block'],
                 (int) $entry['blacklist']
@@ -348,7 +350,7 @@ class Proxy_Report extends Database_Report
         $sql['from'] = 'proxy';
         $sql['where'] = 'base_domain IS NOT NULL';
         $sql['group_by'] = 'ip';
-        $sql['order_by'] = 'size DESC';
+        $sql['order_by'] = 'hits DESC';
 
         $options['range'] = $range;
 
@@ -362,8 +364,8 @@ class Proxy_Report extends Database_Report
         foreach ($entries as $entry) {
             $report_data['data'][] = array(
                 $entry['ip'],
-                (int) $entry['size'],
                 (int) $entry['hits'],
+                (int) $entry['size'],
                 (int) $entry['malware'],
                 (int) $entry['block'],
                 (int) $entry['blacklist']
@@ -397,7 +399,7 @@ class Proxy_Report extends Database_Report
         $sql['from'] = 'proxy';
         $sql['where'] = 'ip = \'' . $ip . '\'';
         $sql['group_by'] = 'base_domain';
-        $sql['order_by'] = 'size DESC';
+        $sql['order_by'] = 'hits DESC';
 
         $options['range'] = $range;
 
@@ -411,8 +413,8 @@ class Proxy_Report extends Database_Report
         foreach ($entries as $entry) {
             $report_data['data'][] = array(
                 $entry['base_domain'],
-                (int) $entry['size'],
                 (int) $entry['hits'],
+                (int) $entry['size'],
                 (int) $entry['malware'],
                 (int) $entry['block'],
                 (int) $entry['blacklist']
@@ -443,7 +445,7 @@ class Proxy_Report extends Database_Report
         $sql['from'] = 'proxy';
         $sql['where'] = 'base_domain IS NOT NULL';
         $sql['group_by'] = 'username';
-        $sql['order_by'] = 'size DESC';
+        $sql['order_by'] = 'hits DESC';
 
         $options['range'] = $range;
 
@@ -457,8 +459,8 @@ class Proxy_Report extends Database_Report
         foreach ($entries as $entry) {
             $report_data['data'][] = array(
                 $entry['username'],
-                (int) $entry['size'],
                 (int) $entry['hits'],
+                (int) $entry['size'],
                 (int) $entry['malware'],
                 (int) $entry['block'],
                 (int) $entry['blacklist']
@@ -490,7 +492,7 @@ class Proxy_Report extends Database_Report
         $sql['from'] = 'proxy';
         $sql['where'] = 'username = \'' . $username . '\'';
         $sql['group_by'] = 'base_domain';
-        $sql['order_by'] = 'size DESC';
+        $sql['order_by'] = 'hits DESC';
 
         $options['range'] = $range;
 
@@ -504,8 +506,8 @@ class Proxy_Report extends Database_Report
         foreach ($entries as $entry) {
             $report_data['data'][] = array(
                 $entry['base_domain'],
-                (int) $entry['size'],
                 (int) $entry['hits'],
+                (int) $entry['size'],
                 (int) $entry['malware'],
                 (int) $entry['block'],
                 (int) $entry['blacklist']
@@ -633,8 +635,8 @@ class Proxy_Report extends Database_Report
             'series_highlight' => 1,
             'headers' => array(
                 lang('base_date'),
-                lang('proxy_report_size'),
                 lang('proxy_report_hits'),
+                lang('proxy_report_size'),
                 lang('proxy_report_cache_hits'),
                 lang('proxy_report_cache_percentage'),
                 lang('proxy_report_warnings'),
@@ -687,8 +689,8 @@ class Proxy_Report extends Database_Report
             ),
             'headers' => array(
                 lang('base_username'),
-                lang('proxy_report_size'),
                 lang('proxy_report_hits'),
+                lang('proxy_report_size'),
                 lang('proxy_report_malware'),
                 lang('proxy_report_blocked'),
                 lang('proxy_report_blacklist')
@@ -721,8 +723,8 @@ class Proxy_Report extends Database_Report
             ),
             'headers' => array(
                 lang('network_ip'),
-                lang('proxy_report_size'),
                 lang('proxy_report_hits'),
+                lang('proxy_report_size'),
                 lang('proxy_report_malware'),
                 lang('proxy_report_blocked'),
                 lang('proxy_report_blacklist')
@@ -745,7 +747,6 @@ class Proxy_Report extends Database_Report
         // Top Sites
         //----------
 
-/*
         $reports['top_sites'] = array(
             'app' => 'proxy_report',
             'title' => lang('proxy_report_top_sites'),
@@ -756,8 +757,8 @@ class Proxy_Report extends Database_Report
             ),
             'headers' => array(
                 lang('proxy_report_site'),
-                lang('proxy_report_size'),
                 lang('proxy_report_hits'),
+                lang('proxy_report_size'),
                 lang('proxy_report_malware'),
                 lang('proxy_report_blocked'),
                 lang('proxy_report_blacklist')
@@ -771,7 +772,6 @@ class Proxy_Report extends Database_Report
                 'int'
             ),
         );
-*/
 
         // Malware Details
         //----------------
@@ -817,15 +817,15 @@ class Proxy_Report extends Database_Report
             'app' => 'proxy_report',
             'title' => lang('proxy_report_ip_summary'),
             'api_data' => 'get_ip_details_data',
-            'chart_type' => 'bar',
+            'chart_type' => 'horizontal_bar',
             'is_detail' => TRUE,
             'format' => array(
                 'baseline_data_points' => 10,
             ),
             'headers' => array(
                 lang('proxy_report_site'),
-                lang('proxy_report_size'),
                 lang('proxy_report_hits'),
+                lang('proxy_report_size'),
                 lang('proxy_report_malware'),
                 lang('proxy_report_blocked'),
                 lang('proxy_report_blacklist')
@@ -847,15 +847,15 @@ class Proxy_Report extends Database_Report
             'app' => 'proxy_report',
             'title' => lang('proxy_report_user_summary'),
             'api_data' => 'get_user_details_data',
-            'chart_type' => 'bar',
+            'chart_type' => 'horizontal_bar',
             'is_detail' => TRUE,
             'format' => array(
                 'baseline_data_points' => 10,
             ),
             'headers' => array(
                 lang('proxy_report_site'),
-                lang('proxy_report_size'),
                 lang('proxy_report_hits'),
+                lang('proxy_report_size'),
                 lang('proxy_report_malware'),
                 lang('proxy_report_blocked'),
                 lang('proxy_report_blacklist')
