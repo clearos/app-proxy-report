@@ -1,7 +1,7 @@
 
 Name: app-proxy-report
 Epoch: 1
-Version: 2.3.0
+Version: 2.3.1
 Release: 1%{dist}
 Summary: Filter and Proxy Report
 License: GPLv3
@@ -79,6 +79,7 @@ exit 0
 %files core
 %defattr(-,root,root)
 %exclude /usr/clearos/apps/proxy_report/packaging
+%exclude /usr/clearos/apps/proxy_report/unify.json
 %dir /usr/clearos/apps/proxy_report
 /usr/clearos/apps/proxy_report/deploy
 /usr/clearos/apps/proxy_report/language
