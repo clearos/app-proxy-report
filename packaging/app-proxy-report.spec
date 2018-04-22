@@ -1,23 +1,26 @@
 
 Name: app-proxy-report
 Epoch: 1
-Version: 2.3.1
+Version: 2.5.0
 Release: 1%{dist}
 Summary: Filter and Proxy Report
 License: GPLv3
-Group: ClearOS/Apps
+Group: Applications/Apps
+Packager: ClearFoundation
+Vendor: ClearFoundation
 Source: %{name}-%{version}.tar.gz
 Buildarch: noarch
 Requires: %{name}-core = 1:%{version}-%{release}
 Requires: app-base
+Requires: app-reports
 
 %description
 The Filter and Proxy Report provides a view of web usage on your network.
 
 %package core
-Summary: Filter and Proxy Report - Core
+Summary: Filter and Proxy Report - API
 License: LGPLv3
-Group: ClearOS/Libraries
+Group: Applications/API
 Requires: app-base-core
 Requires: app-reports-core >= 1:1.4.2
 Requires: app-reports-database-core >= 1:1.4.8

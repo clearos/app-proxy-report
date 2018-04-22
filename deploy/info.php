@@ -5,8 +5,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 $app['basename'] = 'proxy_report';
-$app['version'] = '2.3.1';
-$app['release'] = '1';
+$app['version'] = '2.5.0';
 $app['vendor'] = 'ClearFoundation';
 $app['packager'] = 'ClearFoundation';
 $app['license'] = 'GPLv3';
@@ -31,6 +30,10 @@ $app['controllers']['settings']['title'] = lang('base_settings');
 /////////////////////////////////////////////////////////////////////////////
 // Packaging
 /////////////////////////////////////////////////////////////////////////////
+
+$app['requires'] = array(
+    'app-reports',
+);
 
 $app['core_requires'] = array(
     'app-reports-core >= 1:1.4.2',
